@@ -1,0 +1,11 @@
+space Personas: edad: Real, ingresos: Real, energia: Real
+space Mascotas: edad: Real, especie: Real
+space Adopciones: persona_id: Real, mascota_id: Real, compat: Real
+
+let p1 = Personas[25, 40000, 0.8]
+let m1 = Mascotas[3, 1]
+
+let a1 = adoptar(p1, m1)
+
+when a1.compat > 0.2:
+    approve(a1)
