@@ -1,0 +1,99 @@
+# ═══════════════════════════════════════════════════════════════════════
+#  LinLang — extensión de espacios de Hilbert
+#
+#  Demuestra:
+#    • hilbert spaces y gates declarativos
+#    • estados puros |ψ⟩, superposición, entrelazamiento (Bell state)
+#    • matrices de densidad ρ = |ψ⟩⟨ψ|
+#    • producto tensorial ⊗ y traza parcial
+#    • medición (regla de Born)
+#    • producto interno ⟨φ|ψ⟩
+#    • condicionales sobre propiedades cuánticas: purity, qnorm
+# ═══════════════════════════════════════════════════════════════════════
+
+# ─── Espacios de Hilbert ─────────────────────────────────────────────
+hilbert Qubit: dim 2
+hilbert QReg2: dim 4
+
+# ─── Gates declarativos ──────────────────────────────────────────────
+# Hadamard (se verifica unitariedad automáticamente)
+gate H: Qubit -> Qubit {
+    row [0.7071067811865476, 0.7071067811865476]
+    row [0.7071067811865476, -0.7071067811865476]
+}
+
+# CNOT sobre registro de 2 qubits
+gate CNOT: QReg2 -> QReg2 {
+    row [1, 0, 0, 0]
+    row [0, 1, 0, 0]
+    row [0, 0, 0, 1]
+    row [0, 0, 1, 0]
+}
+
+# ─── Estados base ─────────────────────────────────────────────────────
+let ket0 = ket(Qubit, 1, 0)        # |0⟩
+let ket1 = ket(Qubit, 0, 1)        # |1⟩
+
+print ket0
+print ket1
+
+# ─── Superposición: aplicar H a |0⟩ → |+⟩ ────────────────────────────
+let plus = apply(H, ket0)
+print plus
+
+# ─── Producto interno ⟨0|+⟩  (debe ser ≈ 0.7071) ──────────────────────
+let overlap = braket(ket0, plus)
+
+# ─── Producto tensorial |00⟩ ∈ QReg2 ──────────────────────────────────
+let q00 = tensor(ket0, ket0)
+print q00
+
+# ─── Estado de Bell (entrelazamiento) ─────────────────────────────────
+# H ⊗ I  aplicado a |00⟩ da  |+0⟩ = 1/√2 (|00⟩ + |10⟩)
+# Luego CNOT sobre ese estado produce el estado de Bell Φ⁺:
+#   |Φ⁺⟩ = 1/√2 (|00⟩ + |11⟩)
+let h0 = apply(H, ket0)
+let pre_bell = tensor(h0, ket0)
+let bell = apply(CNOT, pre_bell)
+print bell
+
+# ─── Matrices de densidad ─────────────────────────────────────────────
+let rho_plus = density(plus)       # ρ = |+⟩⟨+|  — estado puro
+let rho_bell = density(bell)       # ρ_bell = |Φ⁺⟩⟨Φ⁺|
+
+print rho_plus
+print rho_bell
+
+# ─── Pureza de estados ────────────────────────────────────────────────
+let pur_plus = purity(rho_plus)    # debe ser ≈ 1.0  (estado puro)
+let pur_bell = purity(rho_bell)    # debe ser ≈ 1.0  (estado puro)
+
+# ─── Traza parcial del estado de Bell ─────────────────────────────────
+# Trazar sobre el segundo qubit (dim=2) produce una mezcla maximal
+# ρ_A = I/2  con pureza 0.5
+let rho_A = partial_trace(rho_bell, 2)
+let pur_A  = purity(rho_A)
+
+print rho_A
+
+# ─── Medición (regla de Born) ─────────────────────────────────────────
+let result_plus = measure(plus)     # |0⟩ con P=0.5, |1⟩ con P=0.5  (argmax → 0)
+let result_bell = measure(bell)     # resultado del estado de Bell
+
+# ─── Condicionales sobre propiedades cuánticas ────────────────────────
+
+# Estado puro: purity ≈ 1.0
+when purity(rho_plus) >= 0.99:
+    observe(rho_plus)
+
+# Subsistema entrelazado: purity < 0.6  (mezcla maximal → 0.5)
+when purity(rho_A) < 0.6:
+    entangled(rho_A)
+
+# Norma del estado de superposición (debe ser ≈ 1.0)
+when qnorm(plus) >= 0.99:
+    normalized(plus)
+
+# Resultado de medición clásico
+when result_plus == 0:
+    collapse_zero(plus)

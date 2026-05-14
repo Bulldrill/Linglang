@@ -12,15 +12,27 @@ import (
 
 // Runtime holds the full interpreter state for a LinLang program.
 type Runtime struct {
+	// ── Classical fields ─────────────────────────────────────────────────────
 	Spaces     map[string]*core.Space
 	Vectors    map[string]*core.Vector
-	Scalars    map[string]float64 // results of dot, norm, etc.
+	Scalars    map[string]float64 // scalar results: dot, norm, quantum properties…
 	Transforms map[string]*core.Transform
 	LastCond   *core.Conditional
 
-	// multi-line transform parsing state
+	// multi-line classical transform state
 	inTransform bool
 	pendingTx   *pendingTransform
+
+	// ── Quantum extension ─────────────────────────────────────────────────────
+	HilbertSpaces   map[string]*core.HilbertSpace
+	QuantumStates   map[string]*core.QuantumState
+	DensityMatrices map[string]*core.DensityMatrix
+	Gates           map[string]*core.Gate
+	Measurements    map[string]int // classical outcomes from measure()
+
+	// multi-line gate declaration state
+	inGate      bool
+	pendingGate *pendingGateDecl
 }
 
 // pendingTransform accumulates a transform declaration until its closing '}'.
@@ -32,12 +44,25 @@ type pendingTransform struct {
 	mappings map[string]core.Expr // output dimension → expression
 }
 
+// pendingGateDecl accumulates a gate declaration until its closing '}'.
+type pendingGateDecl struct {
+	name string
+	dom  string
+	cod  string
+	rows [][]complex128
+}
+
 func NewRuntime() *Runtime {
 	return &Runtime{
-		Spaces:     map[string]*core.Space{},
-		Vectors:    map[string]*core.Vector{},
-		Scalars:    map[string]float64{},
-		Transforms: map[string]*core.Transform{},
+		Spaces:          map[string]*core.Space{},
+		Vectors:         map[string]*core.Vector{},
+		Scalars:         map[string]float64{},
+		Transforms:      map[string]*core.Transform{},
+		HilbertSpaces:   map[string]*core.HilbertSpace{},
+		QuantumStates:   map[string]*core.QuantumState{},
+		DensityMatrices: map[string]*core.DensityMatrix{},
+		Gates:           map[string]*core.Gate{},
+		Measurements:    map[string]int{},
 	}
 }
 
@@ -49,13 +74,12 @@ func (rt *Runtime) ParseLine(line string) {
 		return
 	}
 
-	// ── Inside a transform body ──────────────────────────────────────────────
+	// ── Inside a classical transform body ───────────────────────────────────
 	if rt.inTransform {
 		if trimmed == "}" {
 			rt.finalizeTransform()
 			return
 		}
-		// mapping: dim = expr
 		if idx := strings.Index(trimmed, "="); idx > 0 {
 			dim := strings.TrimSpace(trimmed[:idx])
 			expr := strings.TrimSpace(trimmed[idx+1:])
@@ -64,7 +88,25 @@ func (rt *Runtime) ParseLine(line string) {
 		return
 	}
 
+	// ── Inside a quantum gate body ────────────────────────────────────────────
+	if rt.inGate {
+		if trimmed == "}" {
+			rt.finalizeGate()
+			return
+		}
+		if strings.HasPrefix(trimmed, "row ") {
+			rt.parseGateRow(trimmed)
+		}
+		return
+	}
+
 	switch {
+	case strings.HasPrefix(trimmed, "hilbert "):
+		rt.parseHilbert(trimmed)
+
+	case strings.HasPrefix(trimmed, "gate "):
+		rt.parseGateDecl(trimmed)
+
 	case strings.HasPrefix(trimmed, "space "):
 		rt.parseSpace(trimmed)
 
@@ -236,12 +278,18 @@ func (rt *Runtime) parseVectorLiteral(varName, rhs string) {
 }
 
 // Function call: fn(arg1, arg2, ...)
-// Built-ins: dot, norm, scale, add.
+// Built-ins: dot, norm, scale, add (classical) + ket, apply, tensor, measure,
+// density, partial_trace, braket, purity (quantum).
 // Falls back to registered transforms.
 func (rt *Runtime) parseFuncCall(varName, rhs string) {
 	fnName := strings.TrimSpace(rhs[:strings.Index(rhs, "(")])
 	argsStr := rhs[strings.Index(rhs, "(")+1 : strings.LastIndex(rhs, ")")]
 	args := splitArgs(argsStr)
+
+	// ── Quantum built-ins (delegated to quantum.go) ──────────────────────────
+	if rt.parseQuantumFuncCall(varName, fnName, args) {
+		return
+	}
 
 	switch fnName {
 
@@ -352,7 +400,13 @@ func (rt *Runtime) parseProject(varName, rhs string) {
 
 // ── when ──────────────────────────────────────────────────────────────────────
 
-// Syntax: when vec.dim OP value:
+// Syntax: when LHS OP value:
+// LHS can be:
+//   - vec.dim         (classical vector dimension)
+//   - scalarName      (any value in Scalars map: dot, norm, purity, etc.)
+//   - purity(rho)     (quantum density matrix purity)
+//   - qnorm(psi)      (quantum state norm)
+//
 // Supported operators: >, <, >=, <=, ==, !=
 func (rt *Runtime) parseWhen(line string) {
 	line = strings.TrimPrefix(line, "when ")
@@ -364,28 +418,22 @@ func (rt *Runtime) parseWhen(line string) {
 		return
 	}
 
-	vecDim := strings.TrimSpace(before)
+	lhs := strings.TrimSpace(before)
 	compVal, err := strconv.ParseFloat(strings.TrimSpace(after), 64)
 	if err != nil {
 		fmt.Printf("[⚠️] when: valor no numérico: %s\n", after)
 		return
 	}
 
-	parts := strings.SplitN(vecDim, ".", 2)
-	vecName := strings.TrimSpace(parts[0])
-	dim := ""
-	if len(parts) > 1 {
-		dim = strings.TrimSpace(parts[1])
-	}
-
-	v := rt.Vectors[vecName]
-	if v == nil {
-		fmt.Printf("[❌] when: vector '%s' no encontrado\n", vecName)
+	// Resolve LHS to a float64 getter closure
+	getter, label, ok := rt.resolveConditionLHS(lhs)
+	if !ok {
+		fmt.Printf("[❌] when: no se puede resolver '%s'\n", lhs)
 		return
 	}
 
-	rt.LastCond = core.NewConditional(v, dim, makeCondition(op, compVal), func() {})
-	fmt.Printf("[✔️] Condición registrada: %s.%s %s %.4f\n", vecName, dim, op, compVal)
+	rt.LastCond = core.NewConditional(label, getter, makeCondition(op, compVal), func() {})
+	fmt.Printf("[✔️] Condición registrada: %s %s %.4f\n", label, op, compVal)
 }
 
 // makeCondition builds the predicate function for a given operator and threshold.
@@ -455,6 +503,10 @@ func (rt *Runtime) parseAction(line string) {
 // Syntax: print name
 func (rt *Runtime) parsePrint(line string) {
 	name := strings.TrimSpace(strings.TrimPrefix(line, "print "))
+	// Try quantum types first
+	if rt.printQuantum(name) {
+		return
+	}
 	if v, ok := rt.Vectors[name]; ok {
 		fmt.Printf("[📌] %s = %v  (espacio: %s)\n", name, v.Values, v.Space.Name)
 		return
