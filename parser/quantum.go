@@ -410,6 +410,10 @@ func (rt *Runtime) resolveConditionLHS(lhs string) (getter func() float64, label
 			if rho != nil {
 				return func() float64 { return rho.Trace() }, lhs, true
 			}
+		case "count":
+			if n, ok := rt.countCollection(arg); ok {
+				return func() float64 { return n }, lhs, true
+			}
 		}
 		return nil, lhs, false
 	}

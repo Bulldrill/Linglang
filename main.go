@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	filename := "ejemplo.lin"
+	filename := "examples/ejemplo.lin"
 	if len(os.Args) > 1 {
 		filename = os.Args[1]
 	}

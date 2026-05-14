@@ -112,10 +112,20 @@ func (e *FieldExpr) Eval(p, m *Vector) float64 {
 	if v == nil {
 		return 0
 	}
+	// Space dimensions take priority over the internal-counter shorthand.
+	// If the space declares a dimension named "id" (e.g. space Tarea: id: Real, …)
+	// p.id refers to that dimension value, not the auto-increment v.ID.
+	for i, d := range v.Space.Dimensions {
+		if d == e.Dim {
+			return v.Values[i]
+		}
+	}
+	// Fallback: p.id / m.id → internal vector counter, only when no
+	// dimension with that name exists in the space.
 	if e.Dim == "id" {
 		return float64(v.ID)
 	}
-	return v.Get(e.Dim)
+	return 0 // dimension not found
 }
 
 // BinExpr is a binary arithmetic operation.

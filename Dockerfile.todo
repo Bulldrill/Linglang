@@ -1,0 +1,37 @@
+# ── Stage 1: build ────────────────────────────────────────────────────────────
+FROM golang:1.22-alpine AS builder
+
+# Instalar dependencias de sistema necesarias para modernc.org/sqlite
+RUN apk add --no-cache gcc musl-dev
+
+WORKDIR /app
+
+# Copiar módulos primero para aprovechar la caché de capas Docker
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copiar el resto del código fuente
+COPY . .
+
+# Compilar el servidor TODO
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /todo-server ./cmd/todo-server/
+
+# ── Stage 2: runtime ──────────────────────────────────────────────────────────
+FROM alpine:3.19
+
+RUN apk add --no-cache ca-certificates tzdata
+
+WORKDIR /app
+
+# Copiar el binario compilado
+COPY --from=builder /todo-server ./todo-server
+
+# Copiar los schemas LinLang
+COPY --from=builder /app/examples/todo.lin ./examples/todo.lin
+
+EXPOSE 8080
+
+# El schema se lee desde examples/todo.lin por defecto.
+# LINLANG_DB se inyecta desde docker-compose.
+ENTRYPOINT ["./todo-server"]
+CMD ["examples/todo.lin"]

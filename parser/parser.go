@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"linlang-go/core"
+	"linlang-go/store"
 )
 
 // ── Runtime ───────────────────────────────────────────────────────────────────
@@ -33,6 +34,10 @@ type Runtime struct {
 	// multi-line gate declaration state
 	inGate      bool
 	pendingGate *pendingGateDecl
+
+	// ── Persistence ────────────────────────────────────────────────────────────
+	Store       store.Backend               // nil = no persistence
+	Collections map[string][]*core.Vector   // results of query statements
 }
 
 // pendingTransform accumulates a transform declaration until its closing '}'.
@@ -63,6 +68,7 @@ func NewRuntime() *Runtime {
 		DensityMatrices: map[string]*core.DensityMatrix{},
 		Gates:           map[string]*core.Gate{},
 		Measurements:    map[string]int{},
+		Collections:     map[string][]*core.Vector{},
 	}
 }
 
@@ -125,6 +131,12 @@ func (rt *Runtime) ParseLine(line string) {
 
 	case strings.HasPrefix(trimmed, "print "):
 		rt.parsePrint(trimmed)
+
+	case strings.HasPrefix(trimmed, "persist "):
+		rt.parsePersist(trimmed)
+
+	case strings.HasPrefix(trimmed, "drop "):
+		rt.parseDrop(trimmed)
 
 	default:
 		// Pending action following a `when` block
@@ -248,6 +260,12 @@ func (rt *Runtime) parseLet(line string) {
 	switch {
 	case strings.HasPrefix(rhs, "project "):
 		rt.parseProject(varName, rhs)
+
+	case strings.HasPrefix(rhs, "query_one "):
+		rt.parseQueryOne(varName, rhs)
+
+	case strings.HasPrefix(rhs, "query "):
+		rt.parseQuery(varName, rhs)
 
 	case strings.Contains(rhs, "("):
 		rt.parseFuncCall(varName, rhs)
@@ -522,7 +540,11 @@ func (rt *Runtime) parseAction(line string) {
 // Syntax: print name
 func (rt *Runtime) parsePrint(line string) {
 	name := strings.TrimSpace(strings.TrimPrefix(line, "print "))
-	// Try quantum types first
+	// Collections (query results)
+	if rt.printCollection(name) {
+		return
+	}
+	// Quantum types
 	if rt.printQuantum(name) {
 		return
 	}

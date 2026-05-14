@@ -1,7 +1,100 @@
-version: '3'
+version: '3.9'
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  LinLang TODO — Orquestación Docker Compose
+#
+#  Servicios:
+#    redis       Redis 7 (backend de persistencia)
+#    todo-server LinLang TODO HTTP server (puerto 8080)
+#
+#  Uso rápido:
+#    docker compose up --build
+#
+#  Probar la API:
+#    curl -s -X POST localhost:8080/tasks \
+#      -H "Content-Type: application/json" \
+#      -d '{"title":"Mi primera tarea","priority":3,"category":1}'
+#
+#    curl -s localhost:8080/tasks | python3 -m json.tool
+#    curl -s localhost:8080/tasks/stats | python3 -m json.tool
+#
+#  Ver logs de LinLang en tiempo real:
+#    docker compose logs -f todo-server
+# ─────────────────────────────────────────────────────────────────────────────
+
 services:
-  linlang:
-    build: .
+
+  # ── Redis ─────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: linlang-redis
+    ports:
+      - "6379:6379"
     volumes:
-      - .:/app
-    working_dir: /app
+      - redis_data:/data
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  # ── LinLang TODO Server ───────────────────────────────────────────────────
+  todo-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.todo
+    container_name: linlang-todo
+    ports:
+      - "8080:8080"
+    environment:
+      # Transparente para el programa .lin: cambia el driver aquí sin
+      # tocar ningún archivo LinLang.
+      LINLANG_DB: redis://redis:6379/0
+      PORT: "8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    # Mostrar los logs del runtime LinLang (persist/query/drop)
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  redis_data:
+    driver: local
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Perfiles alternativos
+#
+#  SQLite (sin Redis, datos en volumen local):
+#    LINLANG_DB=sqlite://linlang.db docker compose --profile sqlite up --build
+#
+#  Para agregar un perfil SQLite descomentar:
+# ─────────────────────────────────────────────────────────────────────────────
+#  todo-sqlite:
+#    build:
+#      context: .
+#      dockerfile: Dockerfile.todo
+#    ports:
+#      - "8081:8080"
+#    environment:
+#      LINLANG_DB: sqlite:///data/linlang.db
+#      PORT: "8080"
+#    volumes:
+#      - sqlite_data:/data
+#    profiles: [sqlite]
+#    restart: unless-stopped
+#
+#  sqlite_data:
+#    driver: local

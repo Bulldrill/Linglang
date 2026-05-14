@@ -1,0 +1,58 @@
+# ═══════════════════════════════════════════════════════════════════════
+#  LinLang — Esquema del dominio TODO
+#
+#  Cada tarea es un vector en el espacio "Tarea" (ℝ⁴).
+#  Las transiciones de estado son transformaciones algebraicas entre
+#  subespacios, no mutaciones imperativas.
+#
+#  Dimensiones:
+#    id        — identificador único (entero codificado como Real)
+#    prioridad — 1=baja  2=media  3=alta
+#    estado    — 0=pendiente  1=en_progreso  2=completada
+#    categoria — 1=trabajo  2=personal  3=urgente
+# ═══════════════════════════════════════════════════════════════════════
+
+space Tarea: id: Real, prioridad: Real, estado: Real, categoria: Real
+
+# ── Transforms de ciclo de vida ──────────────────────────────────────
+# Cada transform recibe la tarea original (p) y un vector delta (m).
+# Los transforms de estado ignoran m y fuerzan el nuevo estado.
+# Los transforms de atributo usan m como portador del nuevo valor.
+
+transform completar: Tarea x Tarea -> Tarea {
+    id        = p.id
+    prioridad = p.prioridad
+    estado    = 2
+    categoria = p.categoria
+}
+
+transform iniciar: Tarea x Tarea -> Tarea {
+    id        = p.id
+    prioridad = p.prioridad
+    estado    = 1
+    categoria = p.categoria
+}
+
+transform reabrir: Tarea x Tarea -> Tarea {
+    id        = p.id
+    prioridad = p.prioridad
+    estado    = 0
+    categoria = p.categoria
+}
+
+# ── Transforms de atributo (m lleva el nuevo valor) ──────────────────
+# priorizar: m.prioridad contiene la nueva prioridad deseada
+transform priorizar: Tarea x Tarea -> Tarea {
+    id        = p.id
+    prioridad = m.prioridad
+    estado    = p.estado
+    categoria = p.categoria
+}
+
+# recategorizar: m.categoria contiene la nueva categoría deseada
+transform recategorizar: Tarea x Tarea -> Tarea {
+    id        = p.id
+    prioridad = p.prioridad
+    estado    = p.estado
+    categoria = m.categoria
+}

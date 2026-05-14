@@ -1,0 +1,70 @@
+# ═══════════════════════════════════════════════════════════════════════
+#  LinLang — Demo de persistencia nativa
+#
+#  Muestra cómo persist / drop / query / query_one son primitivas de
+#  primera clase del lenguaje, transparentes al driver subyacente.
+#
+#  Para ejecutar:
+#    LINLANG_DB=sqlite://linlang.db go run . todo_db.lin
+#    LINLANG_DB=redis://localhost:6379/0 go run . todo_db.lin
+#    go run . todo_db.lin        # usa memoria si LINLANG_DB no está seteado
+# ═══════════════════════════════════════════════════════════════════════
+
+# ── Schema ────────────────────────────────────────────────────────────
+space Tarea: id: Real, prioridad: Real, estado: Real, categoria: Real
+
+transform completar: Tarea x Tarea -> Tarea {
+    id        = p.id
+    prioridad = p.prioridad
+    estado    = 2
+    categoria = p.categoria
+}
+
+transform priorizar: Tarea x Tarea -> Tarea {
+    id        = p.id
+    prioridad = m.prioridad
+    estado    = p.estado
+    categoria = p.categoria
+}
+
+# ── INSERT — persist guarda el vector en la base de datos ─────────────
+let t1 = Tarea[1, 3, 0, 3]
+let t2 = Tarea[2, 2, 0, 1]
+let t3 = Tarea[3, 1, 0, 2]
+let t4 = Tarea[4, 3, 0, 1]
+
+persist t1
+persist t2
+persist t3
+persist t4
+
+# ── RETRIEVE — query devuelve una colección ───────────────────────────
+let todas = query Tarea
+print todas
+
+# ── RETRIEVE con filtro algebraico ────────────────────────────────────
+let urgentes = query Tarea where prioridad == 3
+print urgentes
+
+# ── query_one — recupera un único vector al runtime ───────────────────
+let t2_loaded = query_one Tarea where id == 2
+
+# ── UPDATE — transform + persist es el update nativo ─────────────────
+let t2_done = completar(t2_loaded, t2_loaded)
+persist t2_done
+
+# ── Verificar el update ───────────────────────────────────────────────
+let check = query_one Tarea where id == 2
+print check
+
+# ── DELETE ────────────────────────────────────────────────────────────
+let t3_loaded = query_one Tarea where id == 3
+drop t3_loaded
+
+# ── Estado final ──────────────────────────────────────────────────────
+let final = query Tarea
+print final
+
+# ── Condicional sobre la colección ────────────────────────────────────
+when count(urgentes) >= 2:
+    alerta_urgentes(urgentes)
