@@ -68,14 +68,14 @@ func (g *Gate) String() string {
 
 // ── Built-in quantum gates ────────────────────────────────────────────────────
 
-var _1o√2 = complex(1.0/math.Sqrt(2), 0) // 1/√2
+var _invsqrt2 = complex(1.0/math.Sqrt(2), 0) // 1/√2
 
 // BuiltinH returns the Hadamard gate for the given HilbertSpace (dim=2).
 //
 //	H = 1/√2 · [[1, 1], [1, -1]]
 //	H|0⟩ = |+⟩,  H|1⟩ = |−⟩
 func BuiltinH(h *HilbertSpace) *Gate {
-	c := _1o√2
+	c := _invsqrt2
 	return NewGate("H", h, h, [][]complex128{
 		{c, c},
 		{c, -c},
@@ -125,4 +125,35 @@ func BuiltinCNOT(h *HilbertSpace) *Gate {
 		{0, 0, 0, 1},
 		{0, 0, 1, 0},
 	})
+}
+
+// BuiltinI returns the identity gate for any dimension.
+func BuiltinI(h *HilbertSpace) *Gate {
+	n := h.Dim
+	matrix := make([][]complex128, n)
+	for i := range matrix {
+		matrix[i] = make([]complex128, n)
+		matrix[i][i] = 1
+	}
+	return NewGate("I", h, h, matrix)
+}
+
+// KronGate returns the Kronecker (tensor) product G1 ⊗ G2 acting on the
+// given product HilbertSpace.  The matrix satisfies:
+//
+//	(G1⊗G2)_{i·n2+k, j·n2+l} = G1_{ij} · G2_{kl}
+func KronGate(g1, g2 *Gate, space *HilbertSpace) *Gate {
+	n1 := len(g1.Matrix)
+	n2 := len(g2.Matrix)
+	n := n1 * n2
+	matrix := make([][]complex128, n)
+	for i := range matrix {
+		matrix[i] = make([]complex128, n)
+		for j := range matrix[i] {
+			i1, k := i/n2, i%n2
+			j1, l := j/n2, j%n2
+			matrix[i][j] = g1.Matrix[i1][j1] * g2.Matrix[k][l]
+		}
+	}
+	return NewGate(g1.Name+"⊗"+g2.Name, space, space, matrix)
 }

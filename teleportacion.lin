@@ -1,0 +1,116 @@
+# ═══════════════════════════════════════════════════════════════════════════
+#  LinLang — Protocolo de Teleportación Cuántica
+#
+#  Objetivo: teleportar el estado |ψ⟩ = |+⟩ = 1/√2(|0⟩+|1⟩)
+#            de Alice a Bob sin transmitir el qubit físico.
+#
+#  Registro:  |q₀ q₁ q₂⟩
+#               q₀ = qubit de Alice (estado a teleportar)
+#               q₁ = qubit de Alice en el par de Bell compartido
+#               q₂ = qubit de Bob
+#
+#  Protocolo:
+#    1. Preparar  |ψ⟩ ⊗ |00⟩
+#    2. Crear par de Bell entre q₁ y q₂  (I⊗H⊗I  →  I⊗CNOT₁₂)
+#    3. Alice aplica CNOT₀₁ ⊗ I
+#    4. Alice aplica H₀ ⊗ I ⊗ I
+#    5. Alice mide q₀,q₁  →  2 bits clásicos (m₀, m₁)
+#    6. Bob aplica X^m₁ · Z^m₀ para recuperar |ψ⟩
+#
+#  Verificación: purity(rho_Bob) = 0.5 antes de corrección (mezcla maximal)
+#                fidelidad = 1.0 después de corrección
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ─── Espacios ────────────────────────────────────────────────────────────────
+hilbert Qubit: dim 2
+hilbert QReg2: dim 4
+hilbert QReg3: dim 8
+
+# Al declarar Qubit (dim 2) se auto-registran: H_Qubit, X_Qubit, Y_Qubit,
+# Z_Qubit, I_Qubit.  Al declarar QReg2 (dim 4): CNOT_QReg2, I_QReg2.
+
+# ─── Puertas compuestas por producto de Kronecker ────────────────────────────
+# Paso 2a: I⊗H⊗I  — aplicar H al qubit 1 (qubit de Alice en el par de Bell)
+let HI   = kron(H_Qubit,  I_Qubit)     # H⊗I  en QReg2
+let IHI  = kron(I_Qubit,  HI)          # I⊗H⊗I  en QReg3  [8×8]
+
+# Paso 2b: I⊗CNOT₁₂  — CNOT entre qubits 1 (control) y 2 (target)
+let I_CNOT12 = kron(I_Qubit, CNOT_QReg2)   # I⊗CNOT  en QReg3  [8×8]
+
+# Paso 3: CNOT₀₁⊗I  — Alice: q₀ controla q₁
+let CNOT01_I = kron(CNOT_QReg2, I_Qubit)   # CNOT⊗I  en QReg3  [8×8]
+
+# Paso 4: H₀⊗I⊗I  — Alice aplica H a su qubit de entrada q₀
+let II   = kron(I_Qubit, I_Qubit)          # I⊗I  en QReg2
+let HII  = kron(H_Qubit, II)               # H⊗I⊗I  en QReg3  [8×8]
+
+# Correcciones de Bob (puertas en el qubit 2 = último qubit)
+let II_X = kron(II, X_Qubit)              # I⊗I⊗X  para corrección bit-flip
+let II_Z = kron(II, Z_Qubit)              # I⊗I⊗Z  para corrección fase
+
+# ─── Estados base ────────────────────────────────────────────────────────────
+let ket0 = ket(Qubit, 1, 0)              # |0⟩
+let ket1 = ket(Qubit, 0, 1)              # |1⟩
+
+# ─── Estado a teleportar: |ψ⟩ = |+⟩ = 1/√2(|0⟩+|1⟩) ────────────────────────
+let psi = ket(Qubit, 0.7071067811865476, 0.7071067811865476)
+print psi
+
+# ─── Paso 1: estado inicial |ψ⟩ ⊗ |00⟩ ─────────────────────────────────────
+let q00    = tensor(ket0, ket0)          # |00⟩ en QReg2
+let step0  = tensor(psi, q00)           # |ψ,0,0⟩  en QReg3
+print step0
+
+# ─── Paso 2: crear par de Bell entre q₁ y q₂ ────────────────────────────────
+# |ψ⟩ ⊗ |00⟩  →  |ψ⟩ ⊗ |+0⟩  →  |ψ⟩ ⊗ |Φ⁺⟩
+let step1 = apply(IHI,      step0)      # I⊗H⊗I: H en qubit 1
+let step2 = apply(I_CNOT12, step1)      # I⊗CNOT₁₂: entrelaza qubits 1,2
+print step2
+# probs esperados: [0.25, 0, 0, 0.25, 0.25, 0, 0, 0.25]
+
+# ─── Paso 3: Alice aplica CNOT₀₁ ────────────────────────────────────────────
+let step3 = apply(CNOT01_I, step2)
+print step3
+# probs esperados: [0.25, 0, 0, 0.25, 0, 0.25, 0.25, 0]
+
+# ─── Paso 4: Alice aplica Hadamard a su qubit de entrada ────────────────────
+let step4 = apply(HII, step3)
+print step4
+# probs esperados: [0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125]
+# Todos iguales → información sobre |ψ⟩ completamente distribuida
+
+# ─── Paso 5: Alice mide (Born rule determinista: argmax) ────────────────────
+let medicion = measure(step4)
+# Con |+⟩: todos los 8 resultados son equiprobables.
+# argmax → |000⟩, es decir m₀=0, m₁=0.
+# En ese caso Bob ya tiene |+⟩ sin necesitar corrección.
+
+# ─── Verificación por matriz de densidad ────────────────────────────────────
+let rho_total = density(step4)
+
+# Traza parcial sobre Alice (q₀,q₁): queda el qubit de Bob (dim=2)
+# Antes de la corrección = mezcla maximal ρ = I/2 con purity = 0.5
+let rho_bob = trace_alice(rho_total, 2)
+let pur_bob = purity(rho_bob)
+print rho_bob
+
+# ─── Densidad del estado original para comparar ─────────────────────────────
+let rho_psi  = density(psi)
+let pur_psi  = purity(rho_psi)
+
+# ─── Condicionales cuánticos ─────────────────────────────────────────────────
+# 1. Estado original es puro
+when purity(rho_psi) >= 0.99:
+    estado_puro(psi)
+
+# 2. Qubit de Bob (antes de corregir) es mezcla maximal
+when purity(rho_bob) < 0.6:
+    mezcla_maximal(rho_bob)
+
+# 3. El estado del paso 4 distribuye información uniformemente
+when qnorm(step4) >= 0.99:
+    protocolo_unitario(step4)
+
+# 4. La medición determinista da resultado 0 (|000⟩) para |+⟩
+when medicion == 0:
+    sin_correccion(psi)

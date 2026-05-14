@@ -184,6 +184,30 @@ func (d *DensityMatrix) PartialTrace(subDim int) *DensityMatrix {
 	return &DensityMatrix{Space: reducedSpace, Matrix: rho}
 }
 
+// PartialTraceA traces out the FIRST subsystem (A, of dimension totalDim/keepDim)
+// and returns the reduced density matrix of the SECOND subsystem (B, of dimension keepDim).
+//
+//	(ρ_B)_{bb'} = Σ_a ρ_{a·keepDim+b, a·keepDim+b'}
+//
+// Use this when the state is ordered as |A⟩⊗|B⟩ (A first, B last) and you want
+// to trace over A to recover B.  In quantum teleportation, this recovers Bob's qubit
+// after tracing over Alice's measurement qubits.
+func (d *DensityMatrix) PartialTraceA(keepDim int) *DensityMatrix {
+	totalDim := d.Space.Dim
+	traceDim := totalDim / keepDim
+	rho := make([][]complex128, keepDim)
+	for b := range rho {
+		rho[b] = make([]complex128, keepDim)
+		for b2 := range rho[b] {
+			for a := 0; a < traceDim; a++ {
+				rho[b][b2] += d.Matrix[a*keepDim+b][a*keepDim+b2]
+			}
+		}
+	}
+	reducedSpace := NewHilbertSpace(d.Space.Name+"_B", keepDim)
+	return &DensityMatrix{Space: reducedSpace, Matrix: rho}
+}
+
 func (d *DensityMatrix) String() string {
 	return fmt.Sprintf("ρ@%s  [tr=%.4f, purity=%.4f]",
 		d.Space.Name, d.Trace(), d.Purity())

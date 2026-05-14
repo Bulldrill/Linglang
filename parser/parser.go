@@ -73,6 +73,10 @@ func (rt *Runtime) ParseLine(line string) {
 	if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 		return
 	}
+	// Strip inline comments: everything from the first " #" onwards
+	if idx := strings.Index(trimmed, " #"); idx >= 0 {
+		trimmed = strings.TrimSpace(trimmed[:idx])
+	}
 
 	// ── Inside a classical transform body ───────────────────────────────────
 	if rt.inTransform {
@@ -245,11 +249,11 @@ func (rt *Runtime) parseLet(line string) {
 	case strings.HasPrefix(rhs, "project "):
 		rt.parseProject(varName, rhs)
 
-	case strings.Contains(rhs, "["):
-		rt.parseVectorLiteral(varName, rhs)
-
 	case strings.Contains(rhs, "("):
 		rt.parseFuncCall(varName, rhs)
+
+	case strings.Contains(rhs, "["):
+		rt.parseVectorLiteral(varName, rhs)
 
 	default:
 		fmt.Printf("[⚠️] let %s: expresión no reconocida: %s\n", varName, rhs)
@@ -483,14 +487,29 @@ func (rt *Runtime) parseAction(line string) {
 	capturedFn := fnName
 
 	rt.LastCond.Action = func() {
-		v := rt.Vectors[capturedArg]
+		// Resolve argument across all runtime namespaces
+		var repr string
+		switch {
+		case rt.Vectors[capturedArg] != nil:
+			repr = fmt.Sprintf("%v", rt.Vectors[capturedArg])
+		case rt.QuantumStates[capturedArg] != nil:
+			repr = fmt.Sprintf("|ψ⟩@%s", rt.QuantumStates[capturedArg].Space.Name)
+		case rt.DensityMatrices[capturedArg] != nil:
+			repr = fmt.Sprintf("%v", rt.DensityMatrices[capturedArg])
+		default:
+			if s, ok := rt.Scalars[capturedArg]; ok {
+				repr = fmt.Sprintf("%.6f", s)
+			} else {
+				repr = capturedArg
+			}
+		}
 		switch capturedFn {
 		case "approve":
-			fmt.Printf("[✅] APROBADO: %v\n", v)
+			fmt.Printf("[✅] APROBADO: %s\n", repr)
 		case "reject":
-			fmt.Printf("[🚫] RECHAZADO: %v\n", v)
+			fmt.Printf("[🚫] RECHAZADO: %s\n", repr)
 		default:
-			fmt.Printf("[🔔] %s(%v) ejecutado\n", capturedFn, v)
+			fmt.Printf("[🔔] %s(%s) ejecutado\n", capturedFn, repr)
 		}
 	}
 

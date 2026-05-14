@@ -48,7 +48,9 @@ func (rt *Runtime) parseHilbert(line string) {
 	h := core.NewHilbertSpace(name, dim)
 	rt.HilbertSpaces[name] = h
 
-	// Auto-register built-in gates that match this dimension
+	// Auto-register built-in gates that match this dimension.
+	// Identity is always registered so kron() works without manual gate declarations.
+	rt.Gates["I_"+name] = core.BuiltinI(h)
 	switch dim {
 	case 2:
 		rt.Gates["H_"+name] = core.BuiltinH(h)
@@ -311,6 +313,68 @@ func (rt *Runtime) parseQuantumFuncCall(varName, fnName string, args []string) b
 		p := rho.Purity()
 		rt.Scalars[varName] = p
 		fmt.Printf("[✔️] %s = purity(%s) = %.6f\n", varName, strings.TrimSpace(args[0]), p)
+		return true
+	// ── kron(G1, G2) → G1 ⊗ G2  (Kronecker / tensor product of gates) ─────────
+	case "kron":
+		if len(args) < 2 {
+			fmt.Printf("[❌] kron: uso: kron(Gate1, Gate2)\n")
+			return true
+		}
+		g1Name := strings.TrimSpace(args[0])
+		g2Name := strings.TrimSpace(args[1])
+		g1 := rt.Gates[g1Name]
+		g2 := rt.Gates[g2Name]
+		if g1 == nil || g2 == nil {
+			fmt.Printf("[❌] kron: gate(s) no encontrada(s): '%s'='%v', '%s'='%v'\n",
+				g1Name, g1, g2Name, g2)
+			return true
+		}
+		prodDim := g1.Domain.Dim * g2.Domain.Dim
+		// Find or auto-create the product HilbertSpace
+		var prodSpace *core.HilbertSpace
+		for _, h := range rt.HilbertSpaces {
+			if h.Dim == prodDim {
+				prodSpace = h
+				break
+			}
+		}
+		if prodSpace == nil {
+			prodName := g1.Domain.Name + "⊗" + g2.Domain.Name
+			prodSpace = core.NewHilbertSpace(prodName, prodDim)
+			rt.HilbertSpaces[prodName] = prodSpace
+			// Auto-register CNOT if the product is a 2-qubit (dim 4) space
+			if prodDim == 4 {
+				rt.Gates["CNOT_"+prodName] = core.BuiltinCNOT(prodSpace)
+			}
+		}
+		newGate := core.KronGate(g1, g2, prodSpace)
+		rt.Gates[varName] = newGate
+		fmt.Printf("[✔️] %s = kron(%s, %s)  dim=%d  unitary=%v\n",
+			varName, g1Name, g2Name, prodDim, newGate.IsUnitary())
+		return true
+
+	// ── trace_alice(ρ, bob_dim) → ρ_Bob  ─────────────────────────────────────
+	// Traces the FIRST subsystem (Alice), keeping the LAST (Bob, dim=bob_dim).
+	// In teleportation: trace_alice(rho3, 2) gives Bob's single-qubit ρ.
+	case "trace_alice":
+		if len(args) < 2 {
+			fmt.Printf("[❌] trace_alice: uso: trace_alice(rho, bob_dim)\n")
+			return true
+		}
+		rho := rt.DensityMatrices[strings.TrimSpace(args[0])]
+		if rho == nil {
+			fmt.Printf("[❌] trace_alice: matriz '%s' no encontrada\n", strings.TrimSpace(args[0]))
+			return true
+		}
+		keepDim, err := strconv.Atoi(strings.TrimSpace(args[1]))
+		if err != nil {
+			fmt.Printf("[❌] trace_alice: bob_dim inválido: %s\n", args[1])
+			return true
+		}
+		reduced := rho.PartialTraceA(keepDim)
+		rt.DensityMatrices[varName] = reduced
+		fmt.Printf("[✔️] %s = trace_alice(%s, %d)  %v\n",
+			varName, strings.TrimSpace(args[0]), keepDim, reduced)
 		return true
 	}
 
