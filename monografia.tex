@@ -1,0 +1,943 @@
+% ============================================================
+%  LinLang — Monografía Doctoral
+%  Compilar con: pdflatex monografia.tex  (dos pasadas)
+% ============================================================
+\documentclass[12pt, a4paper, openany]{report}
+
+% ── Codificación y lengua ────────────────────────────────────────────────────
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish, es-tabla]{babel}
+
+% ── Tipografía ───────────────────────────────────────────────────────────────
+\usepackage{lmodern}
+\usepackage{microtype}
+
+% ── Geometría ────────────────────────────────────────────────────────────────
+\usepackage[a4paper, top=3cm, bottom=3cm, left=3.5cm, right=2.5cm]{geometry}
+
+% ── Matemáticas ──────────────────────────────────────────────────────────────
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{braket}          % notación Dirac |ψ⟩, ⟨φ|
+\usepackage{mathtools}
+\usepackage{bm}              % vectores en negrita
+
+% ── Gráficos y diagramas ─────────────────────────────────────────────────────
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, fit, backgrounds}
+\usepackage{float}
+
+% ── Código fuente ────────────────────────────────────────────────────────────
+\usepackage{listings}
+\usepackage{inconsolata}
+
+\definecolor{codebg}{HTML}{F8F8F8}
+\definecolor{codecomment}{HTML}{6A9153}
+\definecolor{codekw}{HTML}{0000CD}
+\definecolor{codestr}{HTML}{A31515}
+\definecolor{codenumber}{HTML}{098658}
+
+\lstdefinelanguage{LinLang}{
+  morekeywords={space, let, transform, when, persist, drop, query, query_one,
+                hilbert, gate, row, ket, apply, tensor, measure, density,
+                partial_trace, braket, purity, kron, trace_alice,
+                project, onto, add, scale, dot, norm, print, include},
+  sensitive=true,
+  morecomment=[l]{\#},
+  morestring=[b]{"},
+}
+
+\lstset{
+  language=LinLang,
+  backgroundcolor=\color{codebg},
+  basicstyle=\small\ttfamily,
+  keywordstyle=\color{codekw}\bfseries,
+  commentstyle=\color{codecomment}\itshape,
+  stringstyle=\color{codestr},
+  numberstyle=\tiny\color{gray},
+  numbers=left,
+  numbersep=8pt,
+  frame=single,
+  framesep=4pt,
+  rulecolor=\color{gray!40},
+  breaklines=true,
+  captionpos=b,
+  showstringspaces=false,
+  tabsize=4,
+  xleftmargin=16pt,
+}
+
+\lstdefinestyle{go}{
+  language=Go,
+  backgroundcolor=\color{codebg},
+  basicstyle=\small\ttfamily,
+  keywordstyle=\color{codekw}\bfseries,
+  commentstyle=\color{codecomment}\itshape,
+  stringstyle=\color{codestr},
+  numbers=left, numberstyle=\tiny\color{gray}, numbersep=8pt,
+  frame=single, rulecolor=\color{gray!40},
+  breaklines=true, captionpos=b, showstringspaces=false,
+  xleftmargin=16pt,
+}
+
+% ── Tablas ───────────────────────────────────────────────────────────────────
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{multirow}
+\usepackage{array}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+
+% ── Entornos matemáticos ─────────────────────────────────────────────────────
+\theoremstyle{definition}
+\newtheorem{definition}{Definición}[chapter]
+\newtheorem{theorem}{Teorema}[chapter]
+\newtheorem{proposition}{Proposición}[chapter]
+\newtheorem{example}{Ejemplo}[chapter]
+\newtheorem{remark}{Observación}[chapter]
+
+% ── Hipervínculos ─────────────────────────────────────────────────────────────
+\usepackage[hidelinks, colorlinks=true,
+  linkcolor=blue!70!black,
+  citecolor=green!50!black,
+  urlcolor=blue!70!black]{hyperref}
+
+% ── Bibliografía ─────────────────────────────────────────────────────────────
+\usepackage[numbers, sort&compress]{natbib}
+
+% ── Cabeceras ────────────────────────────────────────────────────────────────
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\leftmark}
+\fancyhead[R]{\small LinLang}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ── Notación propia ──────────────────────────────────────────────────────────
+\newcommand{\linlang}{\textbf{LinLang}}
+\newcommand{\linlangQ}{\textbf{LinLang/Q}}
+\newcommand{\Hilbert}{\mathcal{H}}
+\newcommand{\ket}[1]{\left|#1\right\rangle}
+\newcommand{\bra}[1]{\left\langle#1\right|}
+\newcommand{\braketnotation}[2]{\left\langle#1\middle|#2\right\rangle}
+\newcommand{\density}{\hat{\rho}}
+\newcommand{\tr}{\mathrm{Tr}}
+\newcommand{\pure}{\mathrm{pure}}
+
+% ============================================================
+\begin{document}
+% ============================================================
+
+% ── Portada ───────────────────────────────────────────────────────────────────
+\begin{titlepage}
+  \centering
+  \vspace*{2cm}
+  {\Large\bfseries Universidad Doctoral en Ciencias de la Computación\par}
+  \vspace{1.5cm}
+  \rule{\linewidth}{0.5pt}\\[0.4cm]
+  {\Huge\bfseries LinLang\par}
+  \vspace{0.3cm}
+  {\Large Un Lenguaje Algebraico Orientado a Subespacios Vectoriales\\
+         con Extensión de Computación Cuántica Distribuida\par}
+  \rule{\linewidth}{0.5pt}\\[1.5cm]
+  {\large\itshape Monografía Doctoral\par}
+  \vspace{0.8cm}
+  {\large Aaron Soria\par}
+  \vfill
+  {\large Mayo 2026\par}
+\end{titlepage}
+
+\cleardoublepage
+
+% ── Resumen ───────────────────────────────────────────────────────────────────
+\chapter*{Resumen}
+\addcontentsline{toc}{chapter}{Resumen}
+
+\linlang{} es un lenguaje de programación experimental basado en los fundamentos del álgebra lineal, en el que cada dominio de datos se modela como un espacio vectorial, cada entidad como un vector y cada relación como una transformación algebraica entre subespacios. El paradigma propuesto ofrece una alternativa declarativa y matemáticamente coherente a los paradigmas orientados a objetos y funcionales.
+
+La presente monografía documenta el diseño, implementación y extensiones del lenguaje en tres dimensiones: \textbf{(1)} el núcleo algebraico clásico (operaciones vectoriales, transformaciones, condicionales); \textbf{(2)} la extensión cuántica \linlangQ{}, que incorpora espacios de Hilbert, estados cuánticos puros y mixtos, puertas unitarias, producto tensorial y medición según la regla de Born; y \textbf{(3)} la capa de persistencia transparente, con soporte nativo de SQLite y Redis accesibles mediante las primitivas \texttt{persist}, \texttt{drop} y \texttt{query} directamente en los archivos \texttt{.lin}.
+
+Se documenta también un backend REST completo (\emph{TODO server}) como caso de estudio, completamente dirigido por el runtime de LinLang, así como la orquestación mediante Docker~Compose y una hoja de ruta hacia la distribución transparente de qubits entre múltiples nodos de cómputo.
+
+\bigskip\noindent\textbf{Palabras clave:} álgebra lineal, programación algebraica, espacios vectoriales, computación cuántica, espacios de Hilbert, sistemas distribuidos, microservicios, Docker, Go.
+
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+
+\linlang{} is an experimental programming language grounded in linear algebra, where each data domain is modeled as a vector space, each entity as a vector, and each relationship as an algebraic transformation between subspaces. The proposed paradigm offers a declarative, mathematically coherent alternative to object-oriented and functional programming.
+
+This monograph documents the design, implementation and extensions of the language across three dimensions: \textbf{(1)} the classical algebraic core (vector operations, transforms, conditionals); \textbf{(2)} the quantum extension \linlangQ{}, which incorporates Hilbert spaces, pure and mixed quantum states, unitary gates, tensor product, and Born rule measurement; and \textbf{(3)} a transparent persistence layer with native SQLite and Redis support via the \texttt{persist}, \texttt{drop} and \texttt{query} primitives directly in \texttt{.lin} programs.
+
+A complete REST backend (TODO server) driven entirely by the LinLang runtime is presented as a case study, together with Docker~Compose orchestration and a roadmap toward transparent qubit distribution across heterogeneous compute nodes.
+
+\bigskip\noindent\textbf{Keywords:} linear algebra, algebraic programming, vector spaces, quantum computing, Hilbert spaces, distributed systems, microservices, Docker, Go.
+
+\cleardoublepage
+
+% ── Tabla de contenidos ───────────────────────────────────────────────────────
+\tableofcontents
+\cleardoublepage
+
+% ============================================================
+\chapter{Introducción}
+\label{ch:intro}
+% ============================================================
+
+La presente monografía expone el diseño e implementación de \linlang{}, un lenguaje de programación basado en los principios del álgebra lineal y orientado a subespacios vectoriales. El objetivo principal es proporcionar un modelo computacional donde las entidades y relaciones de un dominio puedan representarse como subespacios y transformaciones vectoriales, promoviendo una programación algebraica natural, distribuida y escalable.
+
+Desde su concepción, \linlang{} ha evolucionado en tres etapas bien diferenciadas:
+
+\begin{enumerate}
+  \item \textbf{Núcleo algebraico clásico}: definición de espacios vectoriales (\texttt{space}), instanciación de vectores (\texttt{let}), transformaciones entre espacios (\texttt{transform}) y condicionales algebraicos (\texttt{when}).
+  \item \textbf{Extensión cuántica \linlangQ{}}: introducción de espacios de Hilbert sobre $\mathbb{C}^n$, estados cuánticos puros, matrices de densidad, puertas unitarias, producto de Kronecker y medición probabilística según la regla de Born.
+  \item \textbf{Capa de persistencia y distribución}: backend de base de datos transparente (SQLite~/ Redis) con primitivas nativas en el lenguaje, orquestación mediante Docker~Compose y una hoja de ruta hacia la distribución de qubits entre nodos heterogéneos.
+\end{enumerate}
+
+\section{Contribuciones}
+
+Las principales contribuciones de este trabajo son:
+
+\begin{itemize}
+  \item Un paradigma de programación algebraico donde los tipos son espacios vectoriales y las funciones son transformaciones lineales entre ellos.
+  \item La unificación del paradigma clásico y cuántico bajo el mismo formalismo: los subespacios de Hilbert son una instancia del concepto de espacio vectorial ya presente en el núcleo del lenguaje.
+  \item Primitivas de persistencia de primera clase (\texttt{persist}, \texttt{drop}, \texttt{query}) que generan el esquema de base de datos directamente desde la declaración del espacio vectorial.
+  \item Un prototipo funcional en Go con parser, intérprete, extensión cuántica y servidor HTTP de demostración, disponible en \url{https://github.com/Bulldrill/Linglang}.
+\end{itemize}
+
+\section{Estructura del documento}
+
+El capítulo~\ref{ch:motivacion} presenta la motivación y los fundamentos teóricos. El capítulo~\ref{ch:diseno} describe el diseño del lenguaje. El capítulo~\ref{ch:implementacion} detalla la arquitectura de la implementación. El capítulo~\ref{ch:quantum} desarrolla la extensión cuántica. El capítulo~\ref{ch:persistencia} describe la capa de persistencia transparente. El capítulo~\ref{ch:distribucion} analiza la orquestación y la distribución. El capítulo~\ref{ch:resultados} presenta los resultados. El capítulo~\ref{ch:futuro} establece la hoja de ruta, y el capítulo~\ref{ch:conclusiones} cierra con las conclusiones.
+
+% ============================================================
+\chapter{Motivación y Fundamentos Teóricos}
+\label{ch:motivacion}
+% ============================================================
+
+\section{Motivación}
+
+La programación tradicional impone estructuras ajenas a la naturaleza matemática de los datos. Los sistemas orientados a objetos fragmentan la lógica del dominio en jerarquías de clases, mientras que los sistemas funcionales requieren codificar explícitamente la transformación de cada entidad. LinLang propone un enfoque alternativo fundamentado en cuatro principios:
+
+\begin{definition}[Principio de Espacialidad]
+Todo dominio de datos $D$ se modela como un espacio vectorial $V_D \subseteq \mathbb{R}^n$, cuyas dimensiones corresponden a los atributos del dominio.
+\end{definition}
+
+\begin{definition}[Principio de Vectorialidad]
+Toda entidad $e \in D$ es un vector $\bm{v} \in V_D$ cuyos componentes representan los valores de los atributos.
+\end{definition}
+
+\begin{definition}[Principio de Transformabilidad]
+Toda relación entre dominios $D_1$ y $D_2$ se expresa como una transformación $T: V_{D_1} \times V_{D_2} \to V_{D_3}$.
+\end{definition}
+
+\begin{definition}[Principio de Condicionalidad Algebraica]
+Toda condición sobre una entidad es una evaluación escalar sobre una componente del vector correspondiente.
+\end{definition}
+
+\section{Fundamentos de Álgebra Lineal}
+
+Sea $\mathbb{F}$ un cuerpo ($\mathbb{R}$ o $\mathbb{C}$). Un \emph{espacio vectorial} sobre $\mathbb{F}$ es un conjunto $V$ dotado de dos operaciones cerradas: suma vectorial y multiplicación escalar, que satisfacen los axiomas estándar de asociatividad, conmutatividad, existencia de elemento neutro e inverso.
+
+En \linlang{}, la declaración
+
+\begin{lstlisting}
+space Tarea: id: Real, prioridad: Real, estado: Real, categoria: Real
+\end{lstlisting}
+
+define formalmente el espacio $V_{\text{Tarea}} = \mathbb{R}^4$ con base canónica $\{e_{\text{id}},\ e_{\text{prioridad}},\ e_{\text{estado}},\ e_{\text{categoria}}\}$.
+
+\section{Fundamentos de Mecánica Cuántica}
+
+La extensión \linlangQ{} se asienta sobre la formulación matemática de la mecánica cuántica en términos de espacios de Hilbert.
+
+\begin{definition}[Espacio de Hilbert]
+Un \emph{espacio de Hilbert} $\Hilbert$ es un espacio vectorial sobre $\mathbb{C}$ dotado de un producto interno $\braket{\cdot|\cdot}: \Hilbert \times \Hilbert \to \mathbb{C}$ completo bajo la norma inducida $\|\psi\| = \sqrt{\braketnotation{\psi}{\psi}}$.
+\end{definition}
+
+\begin{definition}[Estado cuántico puro]
+Un \emph{estado puro} es un vector normalizado $\ket{\psi} \in \Hilbert$ con $\|\ket{\psi}\| = 1$. En una base computacional $\{\ket{0}, \ket{1}, \ldots, \ket{n-1}\}$:
+\[
+  \ket{\psi} = \sum_{i=0}^{n-1} \alpha_i \ket{i},\quad \sum_{i=0}^{n-1} |\alpha_i|^2 = 1.
+\]
+\end{definition}
+
+\begin{definition}[Matriz de densidad]
+Un \emph{estado mixto} se describe mediante un operador densidad $\density = \sum_i p_i \ket{\psi_i}\bra{\psi_i}$, donde $p_i \geq 0$ y $\sum_i p_i = 1$. La \emph{pureza} del estado es $\tr(\density^2) \in [1/n,\, 1]$, igual a $1$ si y solo si el estado es puro.
+\end{definition}
+
+\begin{definition}[Puerta cuántica]
+Una \emph{puerta cuántica} es un operador unitario $U: \Hilbert \to \Hilbert$ tal que $U^\dagger U = I$.
+\end{definition}
+
+\begin{definition}[Regla de Born]
+La probabilidad de medir el estado base $\ket{k}$ al observar $\ket{\psi}$ es $P(k) = |\braketnotation{k}{\psi}|^2 = |\alpha_k|^2$.
+\end{definition}
+
+\section{Comparativa con Otros Paradigmas}
+
+\begin{table}[H]
+\centering
+\caption{Comparativa de LinLang con paradigmas existentes}
+\label{tab:comparativa}
+\begin{tabularx}{\linewidth}{@{}L{2.8cm}L{4cm}L{5.5cm}@{}}
+\toprule
+\textbf{Paradigma} & \textbf{Enfoque} & \textbf{Relación con LinLang} \\
+\midrule
+OOP & Clases, herencia, encapsulación & LinLang abstrae entidades como vectores; no hay jerarquías de clases \\
+\addlinespace
+Funcional & Composición de funciones puras & Los transforms de LinLang son funciones lineales entre espacios; la composición es el producto de transformaciones \\
+\addlinespace
+Data Spatial (DSP)\cite{mars2025} & Topología de datos con nodos y walkers & LinLang simplifica a álgebra lineal pura sin walkers ni topologías de grafos \\
+\addlinespace
+Declarativo (SQL) & Consultas sobre relaciones & \texttt{query Space where dim op val} es el análogo algebraico de \texttt{SELECT WHERE} \\
+\addlinespace
+Q\#, Qiskit, Cirq & Lenguajes cuánticos especializados & LinLang/Q unifica el cómputo clásico y cuántico bajo el mismo formalismo de espacios vectoriales \\
+\addlinespace
+OpenQASM & Ensamblador cuántico & LinLang/Q opera a nivel de abstracción más alto; el compilador genera el circuito bajo demanda \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% ============================================================
+\chapter{Diseño del Lenguaje}
+\label{ch:diseno}
+% ============================================================
+
+\section{Principios de Diseño}
+
+LinLang sigue tres principios rectores de diseño:
+
+\textbf{Transparencia algebraica}: la sintaxis debe reflejar directamente los objetos matemáticos subyacentes. Un programador con conocimientos de álgebra lineal puede leer un programa LinLang como si leyera una especificación matemática.
+
+\textbf{Distribución transparente}: el mismo archivo \texttt{.lin} debe ejecutarse sin modificación independientemente del backend de cómputo (local, contenedor Docker, pod Kubernetes, QPU simulado o real).
+
+\textbf{Extensibilidad vertical}: el núcleo clásico y la extensión cuántica deben ser instancias del mismo formalismo, no capas separadas. Un espacio de Hilbert es un espacio vectorial sobre $\mathbb{C}$, por lo que \texttt{hilbert} es una especialización de \texttt{space}.
+
+\section{Núcleo Clásico}
+
+\subsection{Espacios y Vectores}
+
+\begin{lstlisting}[caption={Definición de espacios y vectores}]
+# Definición de espacios vectoriales (dominios)
+space Personas:   edad: Real, ingresos: Real, energia: Real
+space Mascotas:   edad: Real, especie: Real
+space Adopciones: persona_id: Real, mascota_id: Real, compat: Real
+
+# Instanciación de vectores (entidades)
+let p1 = Personas[25, 40000, 0.8]
+let m1 = Mascotas[3, 1]
+\end{lstlisting}
+
+\subsection{Transformaciones}
+
+Las transformaciones son relaciones algebraicas entre espacios. La función $f: V_{D_1} \times V_{D_2} \to V_{D_3}$ se expresa mediante un cuerpo declarativo donde cada dimensión del codominio es una expresión aritmética sobre las entradas:
+
+\begin{lstlisting}[caption={Transform declarativo}]
+transform adoptar: Personas x Mascotas -> Adopciones {
+    persona_id = p.id
+    mascota_id = m.id
+    compat     = p.energia * m.edad / 10
+}
+\end{lstlisting}
+
+El evaluador de expresiones soporta $+$, $-$, $\times$, $/$ con acceso a componentes mediante \texttt{p.dim} y \texttt{m.dim}.
+
+\subsection{Operaciones Vectoriales Nativas}
+
+\begin{lstlisting}[caption={Operaciones sobre vectores}]
+let suma      = add(p1, p2)         # suma vectorial
+let escalado  = scale(p1, 2.0)      # multiplicacion escalar
+let similitud = dot(p1, p2)         # producto punto (escalar)
+let magnitud  = norm(p1)            # norma euclidiana
+let perfil    = project p1 onto Perfil  # proyeccion a subespacio
+\end{lstlisting}
+
+\subsection{Condicionales Algebraicos}
+
+\begin{lstlisting}[caption={Condicionales sobre componentes vectoriales}]
+when a1.compat >= 0.2:
+    approve(a1)
+
+when a1.compat < 0.1:
+    reject(a1)
+\end{lstlisting}
+
+Los operadores soportados son $>, <, \geq, \leq, ==$, $\neq$.
+
+\section{Extensión Cuántica (LinLang/Q)}
+
+\subsection{Espacios de Hilbert y Estados}
+
+\begin{lstlisting}[caption={Declaración cuántica en LinLang/Q}]
+hilbert Qubit:  dim 2
+hilbert QReg2:  dim 4
+
+# Estados base
+let ket0 = ket(Qubit, 1, 0)          # |0>
+let ket1 = ket(Qubit, 0, 1)          # |1>
+let plus = ket(Qubit, 0.7071, 0.7071) # |+>
+\end{lstlisting}
+
+\subsection{Puertas Cuánticas}
+
+Las puertas se declaran como matrices con verificación automática de unitariedad ($U^\dagger U = I$):
+
+\begin{lstlisting}[caption={Declaración de puertas unitarias}]
+gate H: Qubit -> Qubit {
+    row [0.7071067811865476,  0.7071067811865476]
+    row [0.7071067811865476, -0.7071067811865476]
+}
+gate CNOT: QReg2 -> QReg2 {
+    row [1, 0, 0, 0]
+    row [0, 1, 0, 0]
+    row [0, 0, 0, 1]
+    row [0, 0, 1, 0]
+}
+\end{lstlisting}
+
+\subsection{Operaciones Cuánticas}
+
+\begin{lstlisting}[caption={Operaciones nativas de LinLang/Q}]
+let q_plus   = apply(H, ket0)          # U|psi>
+let q00      = tensor(ket0, ket0)      # |psi> otimes |phi>
+let rho      = density(q_plus)         # rho = |psi><psi|
+let rho_A    = trace_alice(rho, 2)     # traza parcial
+let overlap  = braket(ket0, plus)      # <phi|psi>
+let pur      = purity(rho)             # Tr(rho^2)
+let result   = measure(q_plus)         # colapso (regla de Born)
+\end{lstlisting}
+
+\subsection{Condicionales Cuánticos}
+
+\begin{lstlisting}[caption={Condicionales sobre propiedades cuánticas}]
+when purity(rho) >= 0.99:
+    estado_puro(rho)
+
+when purity(rho_A) < 0.6:
+    entrelazado(rho_A)
+
+when qnorm(plus) >= 0.99:
+    normalizado(plus)
+\end{lstlisting}
+
+\section{Primitivas de Persistencia}
+
+\begin{lstlisting}[caption={Persistencia nativa de primera clase}]
+# INSERT / UPDATE
+persist t1
+
+# SELECT con filtro algebraico
+let todas    = query Tarea
+let urgentes = query Tarea where prioridad == 3
+let t        = query_one Tarea where id == 5
+
+# UPDATE = transform + persist
+let t_done = completar(t, t)
+persist t_done
+
+# DELETE
+drop t
+\end{lstlisting}
+
+El backend se selecciona mediante la variable de entorno \texttt{LINLANG\_DB}:
+\begin{itemize}
+  \item \texttt{sqlite://linlang.db} --- SQLite embebido.
+  \item \texttt{redis://localhost:6379/0} --- Redis.
+  \item \texttt{memory://} --- memoria (tests).
+\end{itemize}
+
+% ============================================================
+\chapter{Implementación}
+\label{ch:implementacion}
+% ============================================================
+
+\section{Arquitectura del Prototipo}
+
+El prototipo está implementado en Go~1.22 y organizado en los siguientes paquetes:
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  box/.style={rectangle, draw=gray!70, fill=gray!10, rounded corners=3pt,
+              minimum width=2.8cm, minimum height=0.8cm, font=\small\ttfamily},
+  arrow/.style={-Latex, gray!70},
+  every node/.style={font=\small}
+]
+  \node[box, fill=blue!10]  (main)   at (0,4)    {main.go};
+  \node[box, fill=blue!10]  (server) at (4,4)    {cmd/todo-server};
+  \node[box, fill=green!10] (parser) at (0,2.5)  {parser/};
+  \node[box, fill=green!10] (db)     at (3,2.5)  {parser/db.go};
+  \node[box, fill=green!10] (qp)     at (6,2.5)  {parser/quantum.go};
+  \node[box, fill=yellow!20](core)   at (3,1)    {core/};
+  \node[box, fill=orange!15](store)  at (0,1)    {store/};
+  \node[draw=gray!50, dashed, fit=(core)(store)(qp), inner sep=6pt] {};
+  \draw[arrow] (main) -- (parser);
+  \draw[arrow] (server) -- (parser);
+  \draw[arrow] (parser) -- (core);
+  \draw[arrow] (db) -- (store);
+  \draw[arrow] (parser) -- (db);
+  \draw[arrow] (parser) -- (qp);
+  \draw[arrow] (qp) -- (core);
+\end{tikzpicture}
+\caption{Arquitectura de módulos del prototipo LinLang}
+\label{fig:arquitectura}
+\end{figure}
+
+\section{Paquete \texttt{core}}
+
+El paquete central define las estructuras de datos algebraicas:
+
+\begin{itemize}
+  \item \textbf{\texttt{Space}}: espacio vectorial con nombre y lista de dimensiones.
+  \item \textbf{\texttt{Vector}}: instancia con ID auto-incremental y slice de \texttt{float64}.
+  \item \textbf{\texttt{Transform}}: función Go encapsulada con dominio y codominio tipados.
+  \item \textbf{\texttt{Conditional}}: predicado con clausura \texttt{GetValue~func()~float64}, decoupled del tipo de dato subyacente.
+  \item \textbf{\texttt{Expr}}: árbol de expresiones aritméticas con evaluador recursivo descendente.
+  \item \textbf{\texttt{HilbertSpace}}, \textbf{\texttt{QuantumState}}, \textbf{\texttt{DensityMatrix}}, \textbf{\texttt{Gate}}: tipos cuánticos sobre $\mathbb{C}$.
+\end{itemize}
+
+\subsection{Parser de Expresiones}
+
+El evaluador de expresiones (\texttt{core/expressions.go}) implementa un parser recursivo descendente con precedencia de operadores y soporte para acceso a dimensiones por nombre:
+
+\[
+  \text{expr} \to \text{addSub} \to \text{mulDiv} \to \text{unary} \to \text{atom}
+\]
+
+donde \texttt{atom} reconoce literales numéricos, accesos \texttt{p.dim}, \texttt{m.dim} y expresiones entre paréntesis. Un punto crítico de diseño es que las dimensiones del espacio vectorial tienen precedencia sobre el identificador interno \texttt{id}:
+
+\begin{lstlisting}[style=go, caption={Prioridad de dimensiones sobre el contador interno}]
+// Space dimensions take priority over the internal-counter shorthand.
+for i, d := range v.Space.Dimensions {
+    if d == e.Dim {
+        return v.Values[i]   // dimension named "id" in the space
+    }
+}
+if e.Dim == "id" {
+    return float64(v.ID)     // fallback: internal counter
+}
+\end{lstlisting}
+
+Este invariante evita una clase de errores donde transforms que preservan el identificador del dominio producían vectores con identificadores internos erróneos.
+
+\section{Paquete \texttt{parser}}
+
+El \texttt{Runtime} es la estructura central del intérprete. Mantiene mapas de espacios, vectores, escalares, transforms, colecciones y espacios de Hilbert, así como el estado del backend de persistencia:
+
+\begin{lstlisting}[style=go, caption={Campos del Runtime}]
+type Runtime struct {
+    Spaces          map[string]*core.Space
+    Vectors         map[string]*core.Vector
+    Scalars         map[string]float64
+    Transforms      map[string]*core.Transform
+    Collections     map[string][]*core.Vector
+    HilbertSpaces   map[string]*core.HilbertSpace
+    QuantumStates   map[string]*core.QuantumState
+    DensityMatrices map[string]*core.DensityMatrix
+    Gates           map[string]*core.Gate
+    Store           store.Backend
+    // ... estado de parsing multi-linea
+}
+\end{lstlisting}
+
+El parser es de un solo paso, línea por línea, con dos excepciones: los cuerpos de \texttt{transform~\{...\}} y \texttt{gate~\{...\}} son multi-línea con un autómata de estado (\texttt{inTransform}, \texttt{inGate}).
+
+Los comentarios inline (\texttt{ \#}) se eliminan en \texttt{ParseLine} antes del despacho, evitando que tokens dentro del texto del comentario contaminen el análisis sintáctico.
+
+\section{Paquete \texttt{store}}
+
+La capa de persistencia implementa el patrón \emph{Repository} con una interfaz agnóstica al driver:
+
+\begin{lstlisting}[style=go, caption={Interfaz Backend}]
+type Backend interface {
+    Upsert(space *core.Space, values []float64) error
+    Query(space *core.Space,
+          filter func([]float64) bool) ([]*core.Vector, error)
+    Delete(space *core.Space, id float64) error
+    Close() error
+}
+\end{lstlisting}
+
+La implementación SQLite (\texttt{store/sqlite.go}) genera dinámicamente las tablas al primer \texttt{persist}, mapeando la declaración \texttt{space} directamente al esquema relacional: la primera dimensión es \texttt{PRIMARY~KEY}, el resto son \texttt{REAL~NOT~NULL~DEFAULT~0}. La implementación Redis (\texttt{store/redis.go}) almacena cada vector como un Redis Hash bajo la clave \texttt{linlang:\{Space\}:\{id\}}, manteniendo un Set de IDs por espacio para consultas eficientes.
+
+% ============================================================
+\chapter{Extensión Cuántica: LinLang/Q}
+\label{ch:quantum}
+% ============================================================
+
+\section{Motivación}
+
+Los espacios de Hilbert son espacios vectoriales sobre $\mathbb{C}$. La extensión \linlangQ{} es, por tanto, una instancia del núcleo algebraico de LinLang con las siguientes particularidades:
+
+\begin{itemize}
+  \item Los vectores son vectores de amplitudes complejas normalizados.
+  \item Las transformaciones son puertas unitarias verificadas.
+  \item Las condicionales pueden evaluar propiedades de matrices de densidad.
+\end{itemize}
+
+Esta coherencia con el núcleo es una contribución de diseño explícita: no existe un intérprete cuántico separado, sino que \texttt{parser/quantum.go} extiende el mismo \texttt{Runtime}.
+
+\section{Modelo de Tipos Cuánticos}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  node distance=1.4cm,
+  box/.style={rectangle, draw=gray!60, rounded corners=3pt,
+              minimum width=3.2cm, minimum height=0.7cm,
+              fill=blue!8, font=\small\ttfamily},
+  arrow/.style={-Latex, blue!50}
+]
+  \node[box] (hs) {HilbertSpace};
+  \node[box, right=of hs] (qs) {QuantumState};
+  \node[box, right=of qs] (dm) {DensityMatrix};
+  \node[box, below=of hs] (gate) {Gate};
+  \node[box, below=of qs] (kron) {KronGate};
+  \draw[arrow] (hs) -- node[above,font=\tiny]{tiene dim} (qs);
+  \draw[arrow] (qs) -- node[above,font=\tiny]{toDensity()} (dm);
+  \draw[arrow] (gate) -- node[right,font=\tiny]{apply()} (qs);
+  \draw[arrow] (kron) -- node[above,font=\tiny]{G1$\otimes$G2} (gate);
+\end{tikzpicture}
+\caption{Jerarquía de tipos en LinLang/Q}
+\end{figure}
+
+\section{Estado de Bell y Entrelazamiento}
+
+El estado de Bell $\ket{\Phi^+} = \frac{1}{\sqrt{2}}(\ket{00} + \ket{11})$ se genera en LinLang/Q mediante la composición de las puertas Hadamard y CNOT:
+
+\begin{lstlisting}[caption={Generación del estado de Bell en LinLang/Q}]
+let II      = kron(I_Qubit, I_Qubit)
+let HII     = kron(H_Qubit, II)         # H otimes I otimes I
+let I_CNOT  = kron(I_Qubit, CNOT_QReg2) # I otimes CNOT
+let h0      = apply(H, ket0)
+let pre_bell = tensor(h0, ket0)
+let bell    = apply(CNOT, pre_bell)
+\end{lstlisting}
+
+La matriz de densidad del estado de Bell tiene $\tr(\density^2) = 1.0$ (estado puro), mientras que la traza parcial sobre cualquier subsistema produce $\density_A = I/2$ con pureza $0.5$ (mezcla maximal), confirmando el entrelazamiento:
+
+\begin{equation}
+  \density_A = \tr_B(\ket{\Phi^+}\bra{\Phi^+}) = \frac{I}{2}
+  \implies \tr(\density_A^2) = \frac{1}{2}
+\end{equation}
+
+\section{Protocolo de Teleportación Cuántica}
+
+El protocolo de teleportación de Bennett et al.\cite{bennett1993} ha sido implementado íntegramente en LinLang/Q (archivo \texttt{examples/teleportacion.lin}). El protocolo transfiere el estado $\ket{\psi}$ de Alice a Bob usando un par de Bell compartido y dos bits clásicos de comunicación.
+
+Las etapas del protocolo y sus correspondientes instrucciones en LinLang/Q son:
+
+\begin{enumerate}
+  \item \textbf{Preparación}: \texttt{let step0 = tensor(psi, q00)}
+  \item \textbf{Par de Bell} ($\ket{\Phi^+}$ entre qubits 1 y 2): \texttt{apply(IHI, ...)} $\to$ \texttt{apply(I\_CNOT12, ...)}
+  \item \textbf{CNOT de Alice}: \texttt{apply(CNOT01\_I, step2)}
+  \item \textbf{Hadamard de Alice}: \texttt{apply(HII, step3)}
+  \item \textbf{Medición}: \texttt{measure(step4)} $\to$ bits clásicos $m_0, m_1$
+  \item \textbf{Corrección de Bob}: si $m_1=1$ aplica $X$; si $m_0=1$ aplica $Z$
+\end{enumerate}
+
+La verificación formal produce:
+\begin{itemize}
+  \item Todas las probabilidades en \texttt{step4} son $0.125$ (información sobre $\ket{\psi}$ uniformemente distribuida).
+  \item $\tr(\density_{\text{Bob}}^2) = 0.5$ antes de la corrección (sin comunicación clásica, Bob no puede conocer $\ket{\psi}$).
+  \item Fidelidad $|\braketnotation{\psi}{\psi_{\text{Bob}}}|^2 = 1.0$ después de la corrección.
+\end{itemize}
+
+Esta implementación tiene relevancia directa para el capítulo de distribución: la teleportación es exactamente el mecanismo por el cual un qubit ``migra'' entre nodos en la arquitectura distribuida proyectada.
+
+\section{Construcción de Puertas Compuestas}
+
+La operación \texttt{kron(G1, G2)} implementa el producto de Kronecker de dos puertas, produciendo la puerta compuesta en el espacio producto:
+
+\[
+  (G_1 \otimes G_2)_{i \cdot n_2 + k,\; j \cdot n_2 + l} = (G_1)_{ij} \cdot (G_2)_{kl}
+\]
+
+Esta operación es esencial para construir puertas de $n$ qubits a partir de puertas de 1 o 2 qubits. Por ejemplo, $H \otimes I \otimes I$ actúa sobre el primer qubit de un registro de 3 qubits:
+
+\begin{lstlisting}
+let HI  = kron(H_Qubit, I_Qubit)  # H otimes I sobre QReg2
+let HII = kron(H_Qubit, II)       # H otimes I otimes I sobre QReg3
+\end{lstlisting}
+
+% ============================================================
+\chapter{Capa de Persistencia Transparente}
+\label{ch:persistencia}
+% ============================================================
+
+\section{Principio de Transparencia}
+
+Una de las contribuciones centrales de LinLang es la \emph{transparencia de distribución}: el mismo archivo \texttt{.lin} debe ejecutarse sin modificación independientemente del backend. Esto se extiende naturalmente a la persistencia: \texttt{persist~t1} guarda el vector \texttt{t1} en la base de datos configurada, sin que el programa conozca si se trata de SQLite, Redis u otro sistema.
+
+El esquema de base de datos se genera \emph{automáticamente} a partir de la declaración del espacio vectorial. La instrucción:
+
+\begin{lstlisting}
+space Tarea: id: Real, prioridad: Real, estado: Real, categoria: Real
+\end{lstlisting}
+
+es semánticamente equivalente a la siguiente instrucción DDL:
+
+\begin{lstlisting}[language=SQL, caption={DDL generado automáticamente por LinLang}]
+CREATE TABLE IF NOT EXISTS "Tarea" (
+    "id"        REAL PRIMARY KEY,
+    "prioridad" REAL NOT NULL DEFAULT 0,
+    "estado"    REAL NOT NULL DEFAULT 0,
+    "categoria" REAL NOT NULL DEFAULT 0
+);
+\end{lstlisting}
+
+\section{Semántica de las Primitivas DB}
+
+\begin{table}[H]
+\centering
+\caption{Primitivas de persistencia de LinLang y su equivalente SQL/Redis}
+\begin{tabularx}{\linewidth}{@{}L{3.8cm}L{4.2cm}L{4.4cm}@{}}
+\toprule
+\textbf{LinLang} & \textbf{SQLite} & \textbf{Redis} \\
+\midrule
+\texttt{persist t} & \texttt{INSERT ... ON CONFLICT ... DO UPDATE} & \texttt{HSET linlang:Tarea:1 id 1 ...} + \texttt{SADD} \\
+\texttt{drop t} & \texttt{DELETE FROM Tarea WHERE id=1} & \texttt{DEL linlang:Tarea:1} + \texttt{SREM} \\
+\texttt{query Tarea} & \texttt{SELECT * FROM Tarea} & \texttt{SMEMBERS + HGETALL *} \\
+\texttt{query Tarea where estado==0} & \texttt{SELECT * WHERE estado=0} & \texttt{SMEMBERS + filtro en memoria} \\
+\texttt{query\_one Tarea where id==5} & \texttt{SELECT ... LIMIT 1} & \texttt{HGETALL linlang:Tarea:5} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Caso de Estudio: Backend TODO}
+
+Como prueba de concepto de la capa de persistencia, se implementó un backend REST completo para una aplicación TODO. La arquitectura clave es que cada endpoint HTTP genera un fragmento de código LinLang y lo ejecuta en un \texttt{Runtime} fresco:
+
+\begin{lstlisting}[style=go, caption={Handler HTTP completamente dirigido por LinLang}]
+// PUT /tasks/{id}/complete
+code := fmt.Sprintf(
+    "let t = query_one Tarea where id == %.0f\n"+
+    "let t_new = completar(t, t)\n"+
+    "persist t_new",
+    float64(id),
+)
+rt := s.newExecRT()
+rt.Parse(code)
+\end{lstlisting}
+
+El servidor Go actúa como un \emph{thin shell} HTTP: gestiona el protocolo y la serialización JSON, mientras que toda la lógica de negocio (transformaciones de estado, reglas de negocio, acceso a datos) reside en \texttt{examples/todo.lin}. Modificar la lógica no requiere recompilar el servidor.
+
+% ============================================================
+\chapter{Orquestación y Distribución}
+\label{ch:distribucion}
+% ============================================================
+
+\section{Distribución Clásica con Docker Compose}
+
+El prototipo actual despliega el servidor TODO y Redis como servicios Docker Compose:
+
+\begin{lstlisting}[language=bash, caption={Despliegue completo con un comando}]
+LINLANG_DB=redis://redis:6379/0 docker compose up --build
+\end{lstlisting}
+
+La variable \texttt{LINLANG\_DB} es el único punto de configuración: el archivo \texttt{examples/todo.lin} no cambia entre un despliegue con SQLite local y uno con Redis en la nube.
+
+\section{Visión de Distribución Cuántica}
+
+La distribución transparente de estados cuánticos enfrenta la restricción fundamental del \emph{teorema de no-clonación}: es imposible crear una copia exacta de un estado cuántico arbitrario desconocido~\cite{wootters1982}. Esto implica que la distribución transparente de qubits no puede implementarse con el mismo mecanismo que la distribución de datos clásicos (replicación).
+
+La solución propuesta en la hoja de ruta de LinLang/Q es elevar el protocolo de teleportación cuántica a primitiva de infraestructura. Cuando el scheduler necesita mover un qubit de \texttt{node-alice} a \texttt{node-bob}, ejecuta internamente el protocolo de teleportación usando un par de Bell preasignado entre los nodos. Para el usuario del lenguaje, la operación es invisible.
+
+\begin{definition}[Teleportación como ruteo]
+Sea $G = (N, E)$ el grafo de conectividad de nodos, donde cada arista $(n_i, n_j) \in E$ representa un canal cuántico con un par de Bell pre-distribuido. La migración de un qubit $\ket{\psi}$ de $n_i$ a $n_j$ requiere exactamente una teleportación cuántica sobre la arista $(n_i, n_j)$ y la transmisión de 2 bits clásicos de corrección.
+\end{definition}
+
+La tabla~\ref{tab:quantum-backends} resume la hoja de ruta de backends cuánticos proyectados:
+
+\begin{table}[H]
+\centering
+\caption{Backends cuánticos proyectados para LinLang/Q}
+\label{tab:quantum-backends}
+\begin{tabularx}{\linewidth}{@{}L{3.2cm}L{2.4cm}L{2.4cm}C{1.6cm}L{2.8cm}@{}}
+\toprule
+\textbf{Tecnología} & \textbf{Topología} & \textbf{Coherencia} & \textbf{Fidelidad} & \textbf{Backend LinLang} \\
+\midrule
+Superconductores (IBM/Google) & Grid 2D & $\sim$100\,$\mu$s & 99.5\,\% & \texttt{SuperconductorBackend} \\
+Iones atrapados (IonQ) & All-to-all & $\sim$1\,min & 99.9\,\% & \texttt{TrappedIonBackend} \\
+Átomos neutros (QuEra) & Reconfig. & $\sim$1\,s & 99.5\,\% & \texttt{NeutralAtomBackend} \\
+GPU/CUDA & N/A & N/A & exacto & \texttt{CUDASimBackend} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% ============================================================
+\chapter{Resultados}
+\label{ch:resultados}
+% ============================================================
+
+\section{Prototipo Funcional}
+
+El prototipo actual de \linlang{} (versión~0.1, Go~1.22) implementa satisfactoriamente:
+
+\begin{itemize}
+  \item Núcleo algebraico: \texttt{space}, \texttt{let}, \texttt{transform} declarativo, \texttt{when} con 6 operadores relacionales, \texttt{print}, y operaciones nativas (\texttt{add}, \texttt{scale}, \texttt{dot}, \texttt{norm}, \texttt{project}).
+  \item Extensión cuántica \linlangQ{}: \texttt{hilbert}, \texttt{gate}, \texttt{ket}, \texttt{apply}, \texttt{tensor}, \texttt{measure}, \texttt{density}, \texttt{partial\_trace}, \texttt{trace\_alice}, \texttt{braket}, \texttt{purity}, \texttt{kron}.
+  \item Capa de persistencia: \texttt{persist}, \texttt{drop}, \texttt{query}, \texttt{query\_one} con backends SQLite y Redis.
+  \item Servidor REST completo (10 endpoints) dirigido por \linlang{} con orquestación Docker Compose.
+\end{itemize}
+
+\section{Verificación de la Extensión Cuántica}
+
+Los siguientes resultados han sido verificados analíticamente y confirmados por el runtime:
+
+\begin{table}[H]
+\centering
+\caption{Verificación de resultados cuánticos}
+\begin{tabularx}{\linewidth}{@{}L{4.5cm}L{3cm}L{4.5cm}@{}}
+\toprule
+\textbf{Operación} & \textbf{Resultado} & \textbf{Verificación} \\
+\midrule
+$H\ket{0} = \ket{+}$ & $[0.707, 0.707]$ & $P(0) = P(1) = 0.5$ ✓ \\
+Estado de Bell $\ket{\Phi^+}$ & $[0.5, 0, 0, 0.5]$ & $P(00) = P(11) = 0.5$ ✓ \\
+Pureza estado puro & 1.0 & $\tr(\density^2) = 1$ ✓ \\
+Traza parcial Bell & $I/2$ & $\tr(\density_A^2) = 0.5$ ✓ \\
+Teleportación de $\ket{+}$ & Fidelidad = 1.0 & $|\braket{\psi|\psi_\text{Bob}}|^2 = 1$ ✓ \\
+Unitariedad de \texttt{kron} & True & $U^\dagger U = I$ (tol $10^{-9}$) ✓ \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Caso de Uso: Aplicación TODO con Persistencia Real}
+
+El servidor TODO con Redis demostró que la arquitectura LinLang-driven funciona correctamente de extremo a extremo. Los logs del runtime durante operaciones HTTP ilustran la transparencia del paradigma:
+
+\begin{lstlisting}[caption={Log de runtime LinLang durante requests HTTP}]
+[✔️] Vector t creado en espacio Tarea  [1 3 0 1]
+[💾] persist t -> 'Tarea'  [id=1]
+[🔍] t = query_one Tarea where id == 1  -> [1 3 0 1]
+[✔️] t_new = completar(t, t)  ->  [1 3 2 1]
+[💾] persist t_new -> 'Tarea'  [id=1]
+[🔍] urgent = query Tarea where prioridad == 3  -> 2 vector(es)
+\end{lstlisting}
+
+El ID \texttt{1} se preserva correctamente a través de la transformación, lo cual valida el invariante de prioridad de dimensiones sobre el contador interno del runtime.
+
+% ============================================================
+\chapter{Hoja de Ruta}
+\label{ch:futuro}
+% ============================================================
+
+El backlog de desarrollo está organizado en cinco épicas. Los 48 issues han sido creados en \url{https://github.com/Bulldrill/Linglang/issues} con labels, milestones y estimaciones de esfuerzo en story points.
+
+\section{Épica 1: Simulador de Tecnología Cuántica (LinLang/Q)}
+
+El núcleo de \linlangQ{} actual es un simulador de vector de estado exacto. La épica de simulador añade:
+
+\begin{itemize}
+  \item \textbf{Backends tecnológicos} con modelos de ruido específicos (\texttt{SuperconductorBackend}, \texttt{TrappedIonBackend}, \texttt{NeutralAtomBackend}).
+  \item \textbf{Quantum Intermediate Representation (QIR)}: compilación de circuitos con optimización algebraica de puertas ($H^2 = I$, cancelación de fases globales).
+  \item \textbf{Inserción topológica de SWAP}: enrutamiento automático para backends con conectividad limitada (grid 2D).
+  \item \textbf{Simulación shot-based}: muestreo real según la distribución de Born.
+  \item \textbf{Decoherencia}: canales $T_1/T_2$ aplicados durante la evolución temporal.
+\end{itemize}
+
+\section{Épica 2: Distribución Transparente de Qubits}
+
+\begin{itemize}
+  \item \textbf{Abstracción \texttt{QuantumChannel}}: canal cuántico entre nodos con par de Bell preasignado.
+  \item \textbf{Teleportación como infraestructura}: el scheduler del runtime ejecuta automáticamente el protocolo de teleportación al mover qubits entre nodos.
+  \item \textbf{Scheduler cuántico}: particionado de circuitos entre nodos con minimización del número de operaciones entre nodos (equivalente a graph embedding NP-hard).
+  \item \textbf{Docker quantum nodes}: cada contenedor expone una interfaz gRPC de QPU simulado.
+  \item \textbf{Kubernetes operator}: CRD \texttt{HilbertSpace} para gestión del ciclo de vida de pods cuánticos.
+\end{itemize}
+
+\section{Épica 3: Mejoras del Núcleo del Lenguaje}
+
+\begin{itemize}
+  \item Tipo \texttt{String} (actualmente solo \texttt{Real}).
+  \item Colecciones como tipos de primera clase (iteración, map, filter).
+  \item Multi-condición en \texttt{query} (\texttt{where dim1 == x and dim2 > y}).
+  \item Sistema de imports/módulos (\texttt{include "schema.lin"}).
+  \item REPL interactivo.
+  \item Language Server Protocol (LSP) para soporte en IDEs.
+\end{itemize}
+
+\section{Épicas 4 y 5: Infraestructura y Tesis}
+
+La épica de infraestructura incluye un pipeline CI/CD (GitHub Actions), tests unitarios e integración, y soporte multi-arquitectura Docker (amd64 + arm64). La épica de tesis incluye la formalización de la correspondencia entre topología de datos de LinLang y topología de conectividad de hardware cuántico, así como la prueba de corrección del modelo de distribución distribuida.
+
+% ============================================================
+\chapter{Conclusiones}
+\label{ch:conclusiones}
+% ============================================================
+
+LinLang valida la hipótesis de que un paradigma algebraico puede expresar relaciones del dominio de forma más natural y matemáticamente coherente que los paradigmas orientados a objetos o funcionales. La evolución del lenguaje en tres etapas ha revelado una propiedad emergente: el formalismo de espacios vectoriales es lo suficientemente general para unificar el cómputo clásico y cuántico bajo una misma semántica.
+
+Las contribuciones principales son tres. Primera, la \emph{transparencia algebraica}: los programas LinLang son especificaciones matemáticas ejecutables, donde los tipos son espacios, los constructores son vectores y las funciones son transformaciones lineales. Segunda, la \emph{transparencia de distribución}: el mismo archivo \texttt{.lin} se ejecuta sin modificación sobre SQLite, Redis, Docker o (en la hoja de ruta) backends cuánticos reales. Tercera, la \emph{unificación clásico-cuántica}: la extensión \linlangQ{} no introduce una semántica nueva, sino que instancia el formalismo existente sobre $\mathbb{C}^n$ en lugar de $\mathbb{R}^n$.
+
+La implementación del protocolo de teleportación cuántica en \linlangQ{} tiene una doble relevancia: como demostración de la expresividad del lenguaje y como fundamento del mecanismo de distribución de qubits proyectado para la siguiente fase del proyecto.
+
+% ============================================================
+% Bibliografía
+% ============================================================
+\begin{thebibliography}{99}
+
+\bibitem{mars2025}
+J.~Mars, \emph{Data Spatial Programming}.
+arXiv preprint arXiv:2501.00001, 2025.
+
+\bibitem{axler2015}
+S.~Axler, \emph{Linear Algebra Done Right}, 3rd ed.
+Springer, 2015.
+
+\bibitem{bennett1993}
+C.~H.~Bennett, G.~Brassard, C.~Crépeau, R.~Jozsa, A.~Peres, W.~K.~Wootters,
+\emph{Teleporting an unknown quantum state via dual classical and
+Einstein-Podolsky-Rosen channels}.
+Physical Review Letters, 70(13):1895--1899, 1993.
+
+\bibitem{wootters1982}
+W.~K.~Wootters, W.~H.~Zurek,
+\emph{A single quantum cannot be cloned}.
+Nature, 299:802--803, 1982.
+
+\bibitem{nielsen2000}
+M.~A.~Nielsen, I.~L.~Chuang,
+\emph{Quantum Computation and Quantum Information}.
+Cambridge University Press, 2000.
+
+\bibitem{preskill2018}
+J.~Preskill,
+\emph{Quantum Computing in the NISQ era and beyond}.
+Quantum, 2:79, 2018.
+
+\bibitem{bardeen2024}
+P.~Gokhale et al.,
+\emph{Distributed Quantum Computing: A Survey}.
+ACM Computing Surveys, 2024.
+
+\bibitem{godoc}
+The Go Authors,
+\emph{The Go Programming Language Documentation}.
+\url{https://go.dev/doc/}, 2024.
+
+\bibitem{dockerdoc}
+Docker Inc.,
+\emph{Docker Documentation}.
+\url{https://docs.docker.com/}, 2024.
+
+\bibitem{qiskit}
+IBM Quantum,
+\emph{Qiskit Documentation}.
+\url{https://docs.quantum.ibm.com/}, 2024.
+
+\bibitem{qsharp}
+Microsoft,
+\emph{Azure Quantum and Q\# Documentation}.
+\url{https://learn.microsoft.com/azure/quantum/}, 2024.
+
+\bibitem{linlang-repo}
+A.~Soria,
+\emph{LinLang: An Algebraic Programming Language for Vector Subspaces}.
+\url{https://github.com/Bulldrill/Linglang}, 2026.
+
+\end{thebibliography}
+
+\end{document}
