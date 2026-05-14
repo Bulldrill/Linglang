@@ -1,11 +1,55 @@
-space Personas: edad: Real, ingresos: Real, energia: Real
-space Mascotas: edad: Real, especie: Real
-space Adopciones: persona_id: Real, mascota_id: Real, compat: Real
+# ═══════════════════════════════════════════════════════
+#  LinLang — ejemplo completo
+#  Demuestra: transforms declarativos, operaciones
+#  vectoriales nativas, proyección y condicionales
+#  con operadores extendidos.
+# ═══════════════════════════════════════════════════════
 
+# ── Espacios ─────────────────────────────────────────────
+space Personas:  edad: Real, ingresos: Real, energia: Real
+space Mascotas:  edad: Real, especie: Real
+space Adopciones: persona_id: Real, mascota_id: Real, compat: Real
+space Perfil:    energia: Real, ingresos: Real
+
+# ── Transform declarativo ─────────────────────────────────
+# La compatibilidad se define como: energia_persona * edad_mascota / 10
+transform adoptar: Personas x Mascotas -> Adopciones {
+    persona_id = p.id
+    mascota_id = m.id
+    compat = p.energia * m.edad / 10
+}
+
+# ── Vectores ──────────────────────────────────────────────
 let p1 = Personas[25, 40000, 0.8]
+let p2 = Personas[30, 55000, 0.6]
 let m1 = Mascotas[3, 1]
 
-let a1 = adoptar(p1, m1)
+# ── Operaciones vectoriales nativas ──────────────────────
+let suma      = add(p1, p2)
+let escalado  = scale(p1, 2.0)
+let similitud = dot(p1, p2)
+let magnitud  = norm(p1)
 
-when a1.compat > 0.2:
+print suma
+print escalado
+print similitud
+print magnitud
+
+# ── Proyección de subespacio ──────────────────────────────
+# Proyectar p1 (3 dims) sobre Perfil (2 dims: energia, ingresos)
+let perfil1 = project p1 onto Perfil
+print perfil1
+
+# ── Transformación entre espacios ─────────────────────────
+let a1 = adoptar(p1, m1)
+print a1
+
+# ── Condicionales con operadores extendidos ───────────────
+when a1.compat >= 0.2:
     approve(a1)
+
+when a1.compat < 0.1:
+    reject(a1)
+
+when a1.compat != 0.0:
+    notify(a1)
