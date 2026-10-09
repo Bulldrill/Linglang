@@ -1,0 +1,67 @@
+// QuantumNode is the gRPC interface a quantum-node container exposes
+// (issue #20): a remote-callable core.QuantumBackend. core.RemoteBackend
+// is the client side; cmd/quantum-node is the server side, wrapping a
+// local (simulated) core.QuantumBackend.
+syntax = "proto3";
+
+package quantumnode;
+
+option go_package = "linlang-go/proto/quantumnode";
+
+message Complex {
+  double real = 1;
+  double imag = 2;
+}
+
+// GateMatrix mirrors core.Gate: a named dim×dim unitary, row-major.
+message GateMatrix {
+  string name = 1;
+  int32 dim = 2;
+  repeated Complex entries = 3;
+}
+
+// StateVector mirrors core.QuantumState: amplitudes over a dim-dimensional
+// HilbertSpace.
+message StateVector {
+  int32 dim = 1;
+  repeated Complex amplitudes = 2;
+}
+
+message ApplyRequest {
+  GateMatrix gate = 1;
+  StateVector state = 2;
+}
+
+message ApplyResponse {
+  StateVector state = 1;
+}
+
+message MeasureRequest {
+  StateVector state = 1;
+}
+
+message MeasureResponse {
+  int32 outcome = 1;
+  repeated double probabilities = 2;
+}
+
+message InfoRequest {}
+
+// InfoResponse mirrors core.QuantumBackend's static metadata methods
+// (Name, SupportedGates, Topology, NoiseModel), fetched once and cached
+// by the client (core.RemoteBackend).
+message InfoResponse {
+  string name = 1;
+  repeated string supported_gates = 2;
+  int32 topology_qubits = 3;
+  repeated int32 topology_edges = 4; // flattened (a0,b0,a1,b1,...) pairs
+  double t1 = 5;
+  double t2 = 6;
+  double readout_error = 7;
+}
+
+service QuantumNode {
+  rpc Apply(ApplyRequest) returns (ApplyResponse);
+  rpc Measure(MeasureRequest) returns (MeasureResponse);
+  rpc Info(InfoRequest) returns (InfoResponse);
+}

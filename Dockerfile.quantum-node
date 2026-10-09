@@ -1,0 +1,27 @@
+# ── Stage 1: build ────────────────────────────────────────────────────────────
+FROM golang:1.22-alpine AS builder
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /quantum-node ./cmd/quantum-node/
+
+# ── Stage 2: runtime ──────────────────────────────────────────────────────────
+FROM alpine:3.19
+
+RUN apk add --no-cache ca-certificates
+
+WORKDIR /app
+COPY --from=builder /quantum-node ./quantum-node
+
+EXPOSE 50051
+
+# "Cada container = un QPU simulado" (issue #20): one instance of this
+# image is one node a distributed LinLang/Q runtime can route operations
+# to via core.RemoteBackend, exactly as transparently as a local backend.
+ENTRYPOINT ["./quantum-node"]
+CMD ["-addr", ":50051"]
