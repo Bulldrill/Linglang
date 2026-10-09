@@ -5,6 +5,9 @@ package parser
 // New keywords:
 //   hilbert Name: dim N
 //   gate Name: Domain -> Codomain { row [...] ... }
+//   technology: <name>            → selects the core.QuantumBackend used by
+//                                    apply()/measure() (default: simulator,
+//                                    or LINLANG_QUANTUM_BACKEND if set)
 //
 // New let-expressions:
 //   ket(Space, amp0, amp1, ...)   → QuantumState
@@ -63,6 +66,39 @@ func (rt *Runtime) parseHilbert(line string) {
 	}
 
 	fmt.Printf("[✔️] Espacio de Hilbert: %s  dim=%d\n", name, dim)
+}
+
+// ── technology ────────────────────────────────────────────────────────────────
+
+// quantumBackend lazily resolves rt.Backend: an explicit `technology:`
+// directive (parseTechnology) takes precedence; otherwise it falls back to
+// LINLANG_QUANTUM_BACKEND, defaulting to the local simulator (issue #13).
+func (rt *Runtime) quantumBackend() (core.QuantumBackend, error) {
+	if rt.Backend != nil {
+		return rt.Backend, nil
+	}
+	backend, err := core.OpenQuantumBackend("")
+	if err != nil {
+		return nil, err
+	}
+	rt.Backend = backend
+	return backend, nil
+}
+
+// Syntax: technology: <name>   (simulator | superconductor | trapped-ion | gpu)
+func (rt *Runtime) parseTechnology(line string) {
+	line = strings.TrimPrefix(line, "technology")
+	line = strings.TrimPrefix(strings.TrimSpace(line), ":")
+	name := strings.TrimSpace(line)
+
+	backend, err := core.OpenQuantumBackend(name)
+	if err != nil {
+		fmt.Printf("[❌] technology '%s': %v\n", name, err)
+		return
+	}
+	rt.Backend = backend
+	fmt.Printf("[✔️] technology = %s  gates=%v  topology=%+v  noise=%+v\n",
+		backend.Name(), backend.SupportedGates(), backend.Topology(), backend.NoiseModel())
 }
 
 // ── gate declaration ──────────────────────────────────────────────────────────
@@ -187,10 +223,19 @@ func (rt *Runtime) parseQuantumFuncCall(varName, fnName string, args []string) b
 			fmt.Printf("[❌] apply: estado cuántico '%s' no encontrado\n", stateName)
 			return true
 		}
-		result := g.Apply(psi)
+		backend, err := rt.quantumBackend()
+		if err != nil {
+			fmt.Printf("[❌] apply: %v\n", err)
+			return true
+		}
+		result, err := backend.Apply(g, psi)
+		if err != nil {
+			fmt.Printf("[❌] apply: %v\n", err)
+			return true
+		}
 		rt.QuantumStates[varName] = result
-		fmt.Printf("[✔️] %s = apply(%s, %s)  probs=%v\n",
-			varName, gateName, stateName, result.Probabilities())
+		fmt.Printf("[✔️] %s = apply(%s, %s)  [%s]  probs=%v\n",
+			varName, gateName, stateName, backend.Name(), result.Probabilities())
 		return true
 
 	// ── tensor(|ψ1⟩, |ψ2⟩) ───────────────────────────────────────────────────
@@ -235,11 +280,20 @@ func (rt *Runtime) parseQuantumFuncCall(varName, fnName string, args []string) b
 			fmt.Printf("[❌] measure: estado '%s' no encontrado\n", strings.TrimSpace(args[0]))
 			return true
 		}
-		outcome, probs := psi.Measure()
+		backend, err := rt.quantumBackend()
+		if err != nil {
+			fmt.Printf("[❌] measure: %v\n", err)
+			return true
+		}
+		outcome, probs, err := backend.Measure(psi)
+		if err != nil {
+			fmt.Printf("[❌] measure: %v\n", err)
+			return true
+		}
 		rt.Measurements[varName] = outcome
 		rt.Scalars[varName] = float64(outcome)
-		fmt.Printf("[✔️] %s = measure(%s) → |%d⟩  probs=%v\n",
-			varName, strings.TrimSpace(args[0]), outcome, probs)
+		fmt.Printf("[✔️] %s = measure(%s) → |%d⟩  [%s]  probs=%v\n",
+			varName, strings.TrimSpace(args[0]), outcome, backend.Name(), probs)
 		return true
 
 	// ── density(|ψ⟩) → ρ = |ψ⟩⟨ψ| ───────────────────────────────────────────

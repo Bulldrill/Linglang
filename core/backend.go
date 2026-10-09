@@ -1,6 +1,9 @@
 package core
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+)
 
 // QuantumBackend is the abstraction every quantum backend — simulator or
 // real QPU — must implement. It is the quantum analogue of store.Backend:
@@ -108,4 +111,79 @@ func (s *SimulatorBackend) Topology() Topology {
 
 func (s *SimulatorBackend) NoiseModel() NoiseModel {
 	return NoNoise()
+}
+
+// ── Real hardware: the Apply/state-vector mismatch ──────────────────────────
+//
+// QuantumBackend.Apply takes an arbitrary *QuantumState — a full amplitude
+// vector — as "input". That is only physically meaningful for a software
+// simulator (SimulatorBackend, and the GPU-accelerated one in
+// cuda_backend.go): the state lives as data in RAM, so applying a matrix to
+// it is literally a matrix-vector product. A real QPU has no such
+// operation: you cannot "load" an arbitrary pre-computed amplitude vector
+// onto physical qubits. A real backend only ever executes a full circuit
+// starting from the ground state |0...0⟩ and returns classical measurement
+// outcomes (shots).
+//
+// ErrStatePreparationUnsupported is what SuperconductorBackend and
+// TrappedIonBackend return from Apply/Measure for exactly this reason: they
+// satisfy the QuantumBackend contract (so they type-check and report their
+// real topology/noise/gate-set), but the *meaningful* way to run a circuit
+// on them is CircuitRunner.Run, which submits the whole circuit as one job.
+var ErrStatePreparationUnsupported = fmt.Errorf(
+	"este backend no admite preparar un estado arbitrario vía Apply/Measure: " +
+		"el hardware real solo ejecuta circuitos completos desde |0...0⟩ — use Run(circuit, shots)")
+
+// CircuitRunner is implemented by backends that execute a whole QIRCircuit
+// as a single job and return a measurement-outcome histogram, rather than
+// applying one gate at a time to an in-memory state vector. This is the
+// only physically meaningful execution mode for real QPUs (see above).
+type CircuitRunner interface {
+	QuantumBackend
+
+	// Run submits circuit for execution with the given number of shots,
+	// starting from |0...0⟩, and returns how many times each basis index
+	// was observed. Σ counts == shots.
+	Run(circuit *QIRCircuit, shots int) (counts map[int]int, err error)
+}
+
+// ── Backend registry ─────────────────────────────────────────────────────────
+
+// cudaBackendFactory constructs the GPU-accelerated simulator. It is nil in
+// a default build (core/cuda_backend.go is excluded by the "cuda" build
+// tag) and is set by that file's init() when compiled with -tags cuda on a
+// machine with the NVIDIA cuQuantum toolkit installed.
+var cudaBackendFactory func() (QuantumBackend, error)
+
+// OpenQuantumBackend constructs the QuantumBackend named by technology, the
+// quantum analogue of store.Open. If technology is empty it reads
+// LINLANG_QUANTUM_BACKEND; if that is also unset it defaults to the ideal
+// simulator.
+//
+// Recognised names:
+//
+//	simulator               → SimulatorBackend (default, noiseless)
+//	superconductor | ibm    → SuperconductorBackend (IBM Quantum, real API)
+//	trapped-ion | ionq      → TrappedIonBackend (IonQ, real API)
+//	gpu | cuda              → GPU-accelerated simulator (requires -tags cuda)
+func OpenQuantumBackend(technology string) (QuantumBackend, error) {
+	if technology == "" {
+		technology = os.Getenv("LINLANG_QUANTUM_BACKEND")
+	}
+	switch technology {
+	case "", "simulator":
+		return NewSimulatorBackend(), nil
+	case "superconductor", "ibm":
+		return NewSuperconductorBackend()
+	case "trapped-ion", "ionq":
+		return NewTrappedIonBackend()
+	case "gpu", "cuda":
+		if cudaBackendFactory == nil {
+			return nil, fmt.Errorf("technology '%s': compilado sin soporte CUDA "+
+				"(requiere 'go build -tags cuda' y el toolkit NVIDIA cuQuantum instalado)", technology)
+		}
+		return cudaBackendFactory()
+	default:
+		return nil, fmt.Errorf("technology '%s' no reconocida (simulator | superconductor | trapped-ion | gpu)", technology)
+	}
 }

@@ -31,6 +31,13 @@ type Runtime struct {
 	Gates           map[string]*core.Gate
 	Measurements    map[string]int // classical outcomes from measure()
 
+	// Backend is the QuantumBackend used by apply()/measure()/teleport().
+	// nil until first needed, at which point it is resolved from an
+	// explicit `technology: <name>` directive or, failing that, from
+	// LINLANG_QUANTUM_BACKEND (default: the local simulator). See
+	// quantumBackend() in quantum.go.
+	Backend core.QuantumBackend
+
 	// multi-line gate declaration state
 	inGate      bool
 	pendingGate *pendingGateDecl
@@ -116,6 +123,9 @@ func (rt *Runtime) ParseLine(line string) {
 
 	case strings.HasPrefix(trimmed, "gate "):
 		rt.parseGateDecl(trimmed)
+
+	case strings.HasPrefix(trimmed, "technology"):
+		rt.parseTechnology(trimmed)
 
 	case strings.HasPrefix(trimmed, "space "):
 		rt.parseSpace(trimmed)
