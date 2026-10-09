@@ -15,6 +15,7 @@ package parser
 //   partial_trace(ρ, subDim)     → reduced DensityMatrix
 //   braket(|φ⟩, |ψ⟩)            → complex inner product ⟨φ|ψ⟩ (real part in Scalars)
 //   purity(ρ)                    → Tr(ρ²) stored in Scalars
+//   teleport(|ψ⟩)                → |ψ⟩ migrada a Bob vía core.Teleport (sin clonar el qubit)
 //
 // Built-in gates (auto-loaded per Hilbert space):
 //   H, X, Y, Z   → single-qubit (dim=2)
@@ -351,6 +352,31 @@ func (rt *Runtime) parseQuantumFuncCall(varName, fnName string, args []string) b
 		rt.Gates[varName] = newGate
 		fmt.Printf("[✔️] %s = kron(%s, %s)  dim=%d  unitary=%v\n",
 			varName, g1Name, g2Name, prodDim, newGate.IsUnitary())
+		return true
+
+	// ── teleport(|ψ⟩) → |ψ⟩ migrada a Bob sin transmitir el qubit físico ─────
+	// Primitiva del runtime distribuido (ver docs/teleportation.md): abre un
+	// QuantumChannel efímero entre "alice" y "bob", comparte un par de Bell,
+	// y ejecuta el protocolo completo de teleportación de core.Teleport.
+	case "teleport":
+		if len(args) < 1 {
+			fmt.Printf("[❌] teleport: uso: teleport(estado)\n")
+			return true
+		}
+		psi := rt.QuantumStates[strings.TrimSpace(args[0])]
+		if psi == nil {
+			fmt.Printf("[❌] teleport: estado '%s' no encontrado\n", strings.TrimSpace(args[0]))
+			return true
+		}
+		ch := core.NewLocalChannel("alice", "bob", psi.Space)
+		result, err := core.Teleport(psi, ch)
+		if err != nil {
+			fmt.Printf("[❌] teleport: %v\n", err)
+			return true
+		}
+		rt.QuantumStates[varName] = result.State
+		fmt.Printf("[✔️] %s = teleport(%s)  bits_clásicos=(m0=%d, m1=%d)  probs=%v\n",
+			varName, strings.TrimSpace(args[0]), result.M0, result.M1, result.State.Probabilities())
 		return true
 
 	// ── trace_alice(ρ, bob_dim) → ρ_Bob  ─────────────────────────────────────

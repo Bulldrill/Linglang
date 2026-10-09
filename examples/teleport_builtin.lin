@@ -1,0 +1,15 @@
+# ═══════════════════════════════════════════════════════════════════════════
+#  LinLang — teleport() como primitiva del runtime distribuido
+#
+#  Equivalente de alto nivel a examples/teleportacion.lin: el mismo protocolo
+#  (par de Bell + CNOT + H + medición + corrección X^m1·Z^m0), expuesto como
+#  una sola llamada en lugar de la secuencia manual de puertas.
+# ═══════════════════════════════════════════════════════════════════════════
+
+hilbert Qubit: dim 2
+
+let psi = ket(Qubit, 0.6, 0.8)
+print psi
+
+let bob = teleport(psi)
+print bob
