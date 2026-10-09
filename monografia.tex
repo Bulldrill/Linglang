@@ -648,6 +648,7 @@ La verificación formal produce:
 Esta implementación tiene relevancia directa para el capítulo de distribución: la teleportación es exactamente el mecanismo por el cual un qubit ``migra'' entre nodos en la arquitectura distribuida proyectada.
 
 \section{Construcción de Puertas Compuestas}
+\label{sec:puertas-compuestas}
 
 La operación \texttt{kron(G1, G2)} implementa el producto de Kronecker de dos puertas, produciendo la puerta compuesta en el espacio producto:
 
@@ -661,6 +662,82 @@ Esta operación es esencial para construir puertas de $n$ qubits a partir de pue
 let HI  = kron(H_Qubit, I_Qubit)  # H otimes I sobre QReg2
 let HII = kron(H_Qubit, II)       # H otimes I otimes I sobre QReg3
 \end{lstlisting}
+
+\section{Formalización Algebraica de \linlangQ{}}
+\label{sec:formalizacion-algebra}
+
+Las secciones anteriores presentaron \linlangQ{} operacionalmente: qué hace cada instrucción. Esta sección formaliza \emph{por qué} esas instrucciones son las correctas, situando cada primitiva del lenguaje como la reificación sintáctica de una construcción algebraica estándar de la mecánica cuántica.
+
+\subsection{El producto tensorial como construcción de programación}
+
+En la formulación matemática estándar, los espacios de Hilbert de dimensión finita forman una categoría $\mathbf{Hilb}$ cuyos objetos son espacios $\mathcal{H}^n$ y cuyos morfismos son aplicaciones lineales; el producto tensorial $\otimes: \mathbf{Hilb} \times \mathbf{Hilb} \to \mathbf{Hilb}$ es un funtor bifuntorial que combina dos espacios en uno de dimensión producto. La mayoría de los lenguajes para computación cuántica (Qiskit, Cirq) tratan $\otimes$ como un detalle de representación interno al \emph{registro} de qubits: el programador declara qubits individuales y el framework decide implícitamente cómo se combinan sus espacios.
+
+\linlangQ{} toma una decisión de diseño distinta: \emph{reifica} $\otimes$ como una operación de primera clase del lenguaje.
+
+\begin{definition}[Producto tensorial como operación del runtime]
+\label{def:tensor-runtime}
+Sean $\mathcal{H}_1, \mathcal{H}_2$ espacios de Hilbert con $\dim \mathcal{H}_1 = n_1$, $\dim \mathcal{H}_2 = n_2$, y $\ket{\psi_1} \in \mathcal{H}_1$, $\ket{\psi_2} \in \mathcal{H}_2$. La instrucción \texttt{tensor(psi1, psi2)} del runtime LinLang computa el vector de amplitudes de $\ket{\psi_1}\otimes\ket{\psi_2} \in \mathcal{H}_1 \otimes \mathcal{H}_2$ ($\dim = n_1 n_2$) vía el producto de Kronecker de las amplitudes, y registra (o reutiliza) el \texttt{HilbertSpace} producto correspondiente en el \texttt{Runtime}. Análogamente, \texttt{kron(G1, G2)} construye el morfismo producto $G_1 \otimes G_2$ sobre el espacio producto.
+\end{definition}
+
+La consecuencia de diseño es que un circuito de $n$ qubits en \linlangQ{} \emph{no} es una lista de puertas sobre índices de un registro implícito, sino una expresión algebraica explícita en el espacio producto —tal como se observó en la Sección~\ref{sec:puertas-compuestas} anterior con \texttt{HII = kron(H\_Qubit, II)}— lo cual hace que la correspondencia entre la sintaxis y el álgebra subyacente sea literal, no incidental.
+
+\subsection{Transformaciones unitarias como morfismos entre subespacios de Hilbert}
+
+\begin{definition}[Puerta cuántica como morfismo]
+\label{def:gate-morfismo}
+Una declaración \texttt{gate G: Dominio -> Codominio \{ ... \}} define un morfismo $G: \mathcal{H}_{\text{dom}} \to \mathcal{H}_{\text{cod}}$ en $\mathbf{Hilb}$, representado por una matriz $U \in \mathbb{C}^{n\times n}$. $G$ pertenece a la subcategoría de morfismos \emph{unitarios} si y solo si preserva el producto interno:
+\[
+  \forall \ket{\varphi},\ket{\psi} \in \mathcal{H}_{\text{dom}}: \quad \braketnotation{U\varphi}{U\psi} = \braketnotation{\varphi}{\psi} \iff U^\dagger U = I.
+\]
+\end{definition}
+
+\texttt{Gate.IsUnitary()} (\texttt{core/gates.go}) verifica exactamente esta condición dentro de una tolerancia $10^{-9}$, y \texttt{finalizeGate} (\texttt{parser/quantum.go}) la evalúa automáticamente al cerrar cada declaración \texttt{gate}. La composición de morfismos —aplicar $G_2$ después de $G_1$— corresponde a dos llamadas sucesivas a \texttt{apply}, y la ley de composición categórica (asociatividad) se cumple trivialmente porque \texttt{apply} es multiplicación matricial estándar:
+\[
+  \texttt{apply(G2, apply(G1, psi))} \;=\; (G_2 G_1)\ket{\psi} \;=\; \texttt{apply(kron\_compose(G2,G1), psi)}.
+\]
+
+\begin{proposition}[Cierre de la subcategoría unitaria bajo $\otimes$]
+\label{prop:unitary-closed}
+Si $G_1, G_2$ son morfismos unitarios, entonces $G_1 \otimes G_2$ (construido por \texttt{kron}) es unitario.
+\end{proposition}
+\begin{proof}[Justificación]
+$(G_1\otimes G_2)^\dagger(G_1\otimes G_2) = (G_1^\dagger \otimes G_2^\dagger)(G_1\otimes G_2) = (G_1^\dagger G_1)\otimes(G_2^\dagger G_2) = I_{n_1}\otimes I_{n_2} = I_{n_1 n_2}$, usando la propiedad mixta del producto de Kronecker $(A\otimes B)(C\otimes D) = (AC)\otimes(BD)$.
+\end{proof}
+
+Esta proposición es la razón por la que puertas compuestas como \texttt{HII = kron(H\_Qubit, II)} en el protocolo de teleportación (Sección~\ref{sec:puertas-compuestas}, también \texttt{examples/teleportacion.lin}) son unitarias \emph{por construcción}, sin necesidad de reverificar $U^\dagger U = I$ sobre la matriz $8\times 8$ resultante.
+
+\subsection{Medición como proyección}
+
+\begin{definition}[Medición en la base computacional]
+\label{def:medicion-proyeccion}
+Sea $\{\ket{i}\}_{i=0}^{n-1}$ la base computacional de $\mathcal{H}^n$ y $P_i = \ket{i}\bra{i}$ el proyector ortogonal sobre $\ket{i}$. Dado $\ket{\psi} = \sum_i \alpha_i \ket{i}$, la medición de $\ket{\psi}$ en esta base es la medida valuada en proyectores (PVM) $\{P_i\}$: el resultado $i$ ocurre con probabilidad (regla de Born) $p_i = \braketnotation{\psi}{P_i}{\psi} = |\alpha_i|^2$, y el estado colapsa a $P_i\ket{\psi}/\sqrt{p_i} = \ket{i}$.
+\end{definition}
+
+\texttt{QuantumState.Probabilities()} (\texttt{core/hilbert.go}) calcula exactamente $p_i = |\alpha_i|^2$ para cada $i$. \texttt{QuantumState.Measure()} implementa actualmente la variante \emph{determinista} de la Definición~\ref{def:medicion-proyeccion} —toma $\arg\max_i p_i$ en lugar de muestrear de la distribución— por razones de reproducibilidad en pruebas; la medición estocástica fiel a la regla de Born está planificada como primitiva separada (issue \#10, \emph{shot-based simulation}) sin alterar esta formalización: solo cambia \emph{cómo} se elige $i$ entre los que tienen $p_i>0$, no la semántica de colapso.
+
+\subsection{Notación de Dirac integrada con la sintaxis LinLang}
+
+La Tabla~\ref{tab:dirac-linlang} hace explícita la correspondencia, instrucción a instrucción, entre la notación de Dirac estándar y la sintaxis de \linlangQ{} —la integración de ambas es, junto con la Definición~\ref{def:tensor-runtime}, la contribución central de diseño de esta extensión.
+
+\begin{table}[H]
+\centering
+\caption{Correspondencia entre notación de Dirac y sintaxis LinLang/Q}
+\label{tab:dirac-linlang}
+\begin{tabularx}{\linewidth}{@{}L{4.2cm}L{4.5cm}L{4.5cm}@{}}
+\toprule
+\textbf{Notación de Dirac} & \textbf{Sintaxis LinLang/Q} & \textbf{Tipo Go} \\
+\midrule
+$\ket{\psi} = \sum_i \alpha_i \ket{i}$ & \texttt{ket(Space, $\alpha_0$, $\alpha_1$, ...)} & \texttt{*QuantumState} \\
+$U\ket{\psi}$ & \texttt{apply(U, psi)} & \texttt{*QuantumState} \\
+$\ket{\psi}\otimes\ket{\varphi}$ & \texttt{tensor(psi, phi)} & \texttt{*QuantumState} \\
+$U_1\otimes U_2$ & \texttt{kron(U1, U2)} & \texttt{*Gate} \\
+$\braketnotation{\varphi}{\psi}$ & \texttt{braket(phi, psi)} & \texttt{complex128} (parte real en \texttt{Scalars}) \\
+$\density = \ket{\psi}\bra{\psi}$ & \texttt{density(psi)} & \texttt{*DensityMatrix} \\
+$\tr_B(\density_{AB})$ & \texttt{partial\_trace(rho, subDim)} & \texttt{*DensityMatrix} \\
+$\{P_i\}$-medición de $\ket{\psi}$ & \texttt{measure(psi)} & \texttt{int} + \texttt{[]float64} \\
+\bottomrule
+\end{tabularx}
+\end{table}
 
 % ============================================================
 \chapter{Capa de Persistencia Transparente}
@@ -739,17 +816,45 @@ LINLANG_DB=redis://redis:6379/0 docker compose up --build
 
 La variable \texttt{LINLANG\_DB} es el único punto de configuración: el archivo \texttt{examples/todo.lin} no cambia entre un despliegue con SQLite local y uno con Redis en la nube.
 
-\section{Visión de Distribución Cuántica}
+\section{Hilbert Spaces Distribuidos como Paradigma de Programación}
+\label{sec:hilbert-distribuido}
 
-La distribución transparente de estados cuánticos enfrenta la restricción fundamental del \emph{teorema de no-clonación}: es imposible crear una copia exacta de un estado cuántico arbitrario desconocido~\cite{wootters1982}. Esto implica que la distribución transparente de qubits no puede implementarse con el mismo mecanismo que la distribución de datos clásicos (replicación).
+\subsection{De microservicios a qubits distribuidos}
 
-La solución propuesta en la hoja de ruta de LinLang/Q es elevar el protocolo de teleportación cuántica a primitiva de infraestructura. Cuando el scheduler necesita mover un qubit de \texttt{node-alice} a \texttt{node-bob}, ejecuta internamente el protocolo de teleportación usando un par de Bell preasignado entre los nodos. Para el usuario del lenguaje, la operación es invisible.
+En una arquitectura de microservicios clásica, cada servicio posee su propio estado y lo expone a otros servicios mediante llamadas que, en el caso general, \emph{copian} datos: una petición HTTP devuelve una copia serializada de un recurso; una réplica de base de datos es, literalmente, una copia. La transparencia de distribución —el principio de que un programa no debería necesitar saber en qué nodo vive un dato para operar sobre él— se consigue clásicamente ocultando \emph{dónde} está la copia, no evitando que exista.
 
-\begin{definition}[Teleportación como ruteo]
-Sea $G = (N, E)$ el grafo de conectividad de nodos, donde cada arista $(n_i, n_j) \in E$ representa un canal cuántico con un par de Bell pre-distribuido. La migración de un qubit $\ket{\psi}$ de $n_i$ a $n_j$ requiere exactamente una teleportación cuántica sobre la arista $(n_i, n_j)$ y la transmisión de 2 bits clásicos de corrección.
+\linlang{} ya aplica este principio al núcleo clásico: \texttt{persist t1} oculta si \texttt{t1} termina en SQLite, Redis o memoria (Capítulo~\ref{ch:persistencia}). La pregunta que este capítulo responde es si el mismo principio —transparencia mediante una primitiva de lenguaje, sin que el programa declare el mecanismo de bajo nivel— puede extenderse al caso en que el "dato" es un qubit.
+
+\subsection{Qué significa transparencia de distribución bajo no-clonación}
+\label{subsec:no-cloning}
+
+La respuesta no es directa, porque el mecanismo clásico (copiar) está prohibido. El \emph{teorema de no-clonación}~\cite{wootters1982} establece que no existe una transformación unitaria $U$ tal que $U(\ket{\psi}\otimes\ket{0}) = \ket{\psi}\otimes\ket{\psi}$ para todo $\ket{\psi}$ desconocido:
+
+\begin{proposition}[No-clonación]
+\label{prop:no-cloning}
+Supóngase que $U$ clona: $U\ket{\psi}\ket{0} = \ket{\psi}\ket{\psi}$ y $U\ket{\varphi}\ket{0} = \ket{\varphi}\ket{\varphi}$. Por linealidad de $U$, aplicado a $\ket{\chi} = \frac{1}{\sqrt2}(\ket{\psi}+\ket{\varphi})$:
+\[
+  U\ket{\chi}\ket{0} = \tfrac{1}{\sqrt2}\big(\ket{\psi}\ket{\psi} + \ket{\varphi}\ket{\varphi}\big) \;\neq\; \ket{\chi}\ket{\chi} = \tfrac12\big(\ket{\psi}\ket{\psi}+\ket{\psi}\ket{\varphi}+\ket{\varphi}\ket{\psi}+\ket{\varphi}\ket{\varphi}\big),
+\]
+salvo casos degenerados ($\ket{\psi}=\ket{\varphi}$). Contradicción: ningún $U$ unitario clona un estado arbitrario.
+\end{proposition}
+
+Por tanto, "transparencia de distribución" para qubits \emph{no puede} significar "el runtime decide en qué nodo guardar una copia", porque no hay copias que guardar. Debe significar algo estructuralmente distinto: \textbf{el runtime decide cómo migrar la única instancia del estado}, destruyéndola en el origen exactamente cuando la recrea en el destino. Esa es, precisamente, la operación que la teleportación cuántica implementa.
+
+\subsection{Por qué la teleportación es la respuesta}
+
+La teleportación (formalizada en la Sección~\ref{sec:formalizacion-algebra} y en \texttt{docs/teleportation.md}) satisface exactamente la restricción de la Proposición~\ref{prop:no-cloning}: en ningún paso del protocolo existen simultáneamente dos copias utilizables de $\ket{\psi}$. El qubit de Alice es destruido por la medición de la Sección~\ref{sec:formalizacion-algebra} en el mismo paso en que su información se vuelve recuperable por Bob. Esto la convierte en la \emph{única} primitiva físicamente consistente para migrar un qubit entre nodos, de la misma manera que \texttt{mv} (y no \texttt{cp}) es la operación correcta para mover —no copiar— un archivo.
+
+\begin{definition}[Teleportación como primitiva de ruteo]
+\label{def:teleportacion-ruteo}
+Sea $G=(N,E)$ el grafo de conectividad de nodos, donde cada arista $(n_i,n_j)\in E$ es un \texttt{QuantumChannel} con un par de Bell pre-provisionable (\texttt{ShareBellPair}, \texttt{core/channel.go}). La migración de un qubit $\ket{\psi}$ de $n_i$ a $n_j$ es exactamente una ejecución de \texttt{core.Teleport(psi, ch)} sobre la arista $(n_i,n_j)$: una teleportación cuántica más la transmisión de 2 bits clásicos de corrección (\texttt{SendClassical}/\texttt{RecvClassical}).
 \end{definition}
 
-La tabla~\ref{tab:quantum-backends} resume la hoja de ruta de backends cuánticos proyectados:
+A diferencia de la hoja de ruta original —que describía este mecanismo únicamente en prosa, como visión—, la Definición~\ref{def:teleportacion-ruteo} corresponde hoy a código ejecutable y verificado: \texttt{core.QuantumChannel} es la interfaz del canal, \texttt{core.LocalChannel} su implementación de referencia (ambos extremos en el mismo proceso, análogo a \texttt{store.MemoryStore}), y \texttt{core.Teleport} el protocolo completo expuesto además como builtin de lenguaje, \texttt{teleport(psi)} (\texttt{parser/quantum.go}, ejemplo en \texttt{examples/teleport\_builtin.lin}). \texttt{core/teleport\_test.go} verifica que, para cualquier $\ket{\psi}$ y cualquiera de los 4 resultados de medición que el canal produzca, el qubit recuperado en \texttt{NodeB()} es idéntico —hasta $10^{-9}$— al original en \texttt{NodeA()}.
+
+Lo que la hoja de ruta de \linlangQ{} proyecta como trabajo futuro es la capa que falta \emph{alrededor} de esta primitiva ya formalizada: \texttt{QuantumChannel} entre procesos reales en lugar de \texttt{LocalChannel} en memoria (registro de Hilbert spaces distribuidos, issue \#16), un scheduler que decida \emph{cuándo} invocar \texttt{Teleport} al particionar un circuito entre nodos (issues \#17–\#19), y backends físicos que implementen \texttt{core.QuantumBackend} contra hardware real (issues \#3–\#6, Tabla~\ref{tab:quantum-backends}). La contribución de este capítulo es que, a diferencia de un roadmap puramente especulativo, el contrato que esa capa de infraestructura deberá satisfacer —\texttt{QuantumChannel}, \texttt{QuantumBackend}, \texttt{Teleport}— ya está definido, implementado y probado.
+
+La tabla~\ref{tab:quantum-backends} resume la hoja de ruta de backends cuánticos proyectados, cada uno de los cuales deberá implementar la interfaz \texttt{core.QuantumBackend} (\texttt{Apply}, \texttt{Measure}, \texttt{SupportedGates}, \texttt{Topology}, \texttt{NoiseModel}; \texttt{core/backend.go}) — hoy satisfecha por \texttt{SimulatorBackend}, la implementación de referencia noiseless:
 
 \begin{table}[H]
 \centering
