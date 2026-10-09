@@ -50,9 +50,20 @@ type Runtime struct {
 	inGate      bool
 	pendingGate *pendingGateDecl
 
+	// multi-line `for x in collection { ... }` loop state (issue #25)
+	inFor      bool
+	pendingFor *pendingForLoop
+
 	// ── Persistence ────────────────────────────────────────────────────────────
-	Store       store.Backend               // nil = no persistence
-	Collections map[string][]*core.Vector   // results of query statements
+	Store       store.Backend             // nil = no persistence
+	Collections map[string][]*core.Vector // results of query statements
+}
+
+// pendingForLoop accumulates a `for` loop body until its closing '}'.
+type pendingForLoop struct {
+	varName  string
+	collName string
+	body     []string
 }
 
 // pendingTransform accumulates a transform declaration until its closing '}'.
@@ -115,6 +126,16 @@ func (rt *Runtime) ParseLine(line string) {
 		return
 	}
 
+	// ── Inside a `for` loop body ─────────────────────────────────────────────
+	if rt.inFor {
+		if trimmed == "}" {
+			rt.finalizeFor()
+			return
+		}
+		rt.pendingFor.body = append(rt.pendingFor.body, trimmed)
+		return
+	}
+
 	// ── Inside a quantum gate body ────────────────────────────────────────────
 	if rt.inGate {
 		if trimmed == "}" {
@@ -136,6 +157,9 @@ func (rt *Runtime) ParseLine(line string) {
 
 	case strings.HasPrefix(trimmed, "technology"):
 		rt.parseTechnology(trimmed)
+
+	case strings.HasPrefix(trimmed, "for "):
+		rt.parseForDecl(trimmed)
 
 	case strings.HasPrefix(trimmed, "space "):
 		rt.parseSpace(trimmed)
@@ -335,6 +359,12 @@ func (rt *Runtime) parseFuncCall(varName, rhs string) {
 
 	switch fnName {
 
+	case "filter":
+		rt.applyFilter(varName, args)
+
+	case "map":
+		rt.applyMap(varName, args)
+
 	case "dot":
 		// dot(v1, v2) → scalar
 		v1 := rt.Vectors[strings.TrimSpace(args[0])]
@@ -438,6 +468,56 @@ func (rt *Runtime) parseProject(varName, rhs string) {
 	rt.Vectors[varName] = projected
 	fmt.Printf("[✔️] %s = project %s onto %s  →  %v\n",
 		varName, srcName, targetName, projected.Values)
+}
+
+// ── for ───────────────────────────────────────────────────────────────────────
+
+// Syntax: for <var> in <collection> {
+func (rt *Runtime) parseForDecl(line string) {
+	line = strings.TrimPrefix(line, "for ")
+	line = strings.TrimSuffix(strings.TrimSpace(line), "{")
+	line = strings.TrimSpace(line)
+
+	parts := strings.SplitN(line, " in ", 2)
+	if len(parts) < 2 {
+		fmt.Printf("[❌] for: sintaxis: for <var> in <coleccion> {\n")
+		return
+	}
+	rt.inFor = true
+	rt.pendingFor = &pendingForLoop{
+		varName:  strings.TrimSpace(parts[0]),
+		collName: strings.TrimSpace(parts[1]),
+	}
+	fmt.Printf("[🔁] for %s in %s {\n", rt.pendingFor.varName, rt.pendingFor.collName)
+}
+
+// finalizeFor executes the accumulated body once per vector in the target
+// collection, binding pendingFor.varName to each vector in turn via
+// rt.Vectors — "iteración" over collections as first-class values (issue
+// #25). Each body line is re-dispatched through ParseLine, so the body can
+// contain anything a top-level line can: prints, further let-expressions,
+// transforms, conditionals.
+//
+// Limitation: the body collector only tracks the outermost '{'/'}' pair —
+// it does not nest, so a for-body cannot itself contain another brace
+// block (gate/transform/for). Not needed by any current example; revisit
+// if that becomes necessary.
+func (rt *Runtime) finalizeFor() {
+	pf := rt.pendingFor
+	rt.inFor, rt.pendingFor = false, nil
+
+	coll, ok := rt.Collections[pf.collName]
+	if !ok {
+		fmt.Printf("[❌] for: colección '%s' no encontrada\n", pf.collName)
+		return
+	}
+	for _, v := range coll {
+		rt.Vectors[pf.varName] = v
+		for _, bodyLine := range pf.body {
+			rt.ParseLine(bodyLine)
+		}
+	}
+	fmt.Printf("[✔️] for %s in %s  → %d iteración(es)\n", pf.varName, pf.collName, len(coll))
 }
 
 // ── when ──────────────────────────────────────────────────────────────────────

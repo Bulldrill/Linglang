@@ -23,6 +23,17 @@
 //	let x = query_one Space where dim OP value
 //	    Carga el primer vector que satisface la condición → rt.Vectors["x"]
 //
+//	let x = filter(collection, dim OP value [and/or ...])
+//	    Filtra una colección ya cargada en memoria (issue #25).
+//
+//	let x = map(collection, transformName, otherVector)
+//	    Aplica un transform binario registrado a cada vector de la colección
+//	    contra otherVector, produciendo una nueva colección (issue #25).
+//
+//	for v in collection { ... }
+//	    Itera la colección, ligando v a cada vector por turno (issue #25).
+//	    Ver parser.go: parseForDecl / finalizeFor.
+//
 // La conexión al backend se configura mediante LINLANG_DB y es
 // completamente transparente para el programa .lin.
 package parser
@@ -251,6 +262,86 @@ func anyOf(fns []func([]float64) bool) func([]float64) bool {
 		}
 		return false
 	}
+}
+
+// ── filter / map over in-memory collections (issue #25) ─────────────────────
+
+// Syntax: let x = filter(collection, dim OP value [and/or ...])
+// Filters an already-loaded collection in memory — unlike query's `where`,
+// this never touches rt.Store, so it also works on collections built by
+// map() or by a previous filter().
+func (rt *Runtime) applyFilter(varName string, args []string) bool {
+	if len(args) < 2 {
+		fmt.Printf("[❌] filter: uso: filter(coleccion, dim OP valor)\n")
+		return true
+	}
+	collName := strings.TrimSpace(args[0])
+	coll, ok := rt.Collections[collName]
+	if !ok {
+		fmt.Printf("[❌] filter: colección '%s' no encontrada\n", collName)
+		return true
+	}
+	if len(coll) == 0 {
+		rt.Collections[varName] = []*core.Vector{}
+		fmt.Printf("[✔️] %s = filter(%s, ...)  → 0 vector(es)\n", varName, collName)
+		return true
+	}
+
+	condExpr := strings.TrimSpace(strings.Join(args[1:], ","))
+	filterFn, label, errMsg := buildMultiConditionFilter(coll[0].Space, condExpr)
+	if errMsg != "" {
+		fmt.Printf("[❌] filter: %s\n", errMsg)
+		return true
+	}
+
+	result := make([]*core.Vector, 0, len(coll))
+	for _, v := range coll {
+		if filterFn(v.Values) {
+			result = append(result, v)
+		}
+	}
+	rt.Collections[varName] = result
+	fmt.Printf("[✔️] %s = filter(%s, %s)  → %d vector(es)\n", varName, collName, label, len(result))
+	return true
+}
+
+// Syntax: let x = map(collection, transformName, otherVector)
+// Applies a registered binary transform (transform Name: D1 x D2 -> Cod)
+// elementwise over collection against the fixed otherVector, producing a
+// new collection — "map" in the sense LinLang's transforms already use: a
+// relation between two vectors, held constant on one side across the loop.
+func (rt *Runtime) applyMap(varName string, args []string) bool {
+	if len(args) < 3 {
+		fmt.Printf("[❌] map: uso: map(coleccion, transformName, otroVector)\n")
+		return true
+	}
+	collName := strings.TrimSpace(args[0])
+	txName := strings.TrimSpace(args[1])
+	otherName := strings.TrimSpace(args[2])
+
+	coll, ok := rt.Collections[collName]
+	if !ok {
+		fmt.Printf("[❌] map: colección '%s' no encontrada\n", collName)
+		return true
+	}
+	tx, ok := rt.Transforms[txName]
+	if !ok {
+		fmt.Printf("[❌] map: transform '%s' no registrado\n", txName)
+		return true
+	}
+	other := rt.Vectors[otherName]
+	if other == nil {
+		fmt.Printf("[❌] map: vector '%s' no encontrado\n", otherName)
+		return true
+	}
+
+	result := make([]*core.Vector, 0, len(coll))
+	for _, v := range coll {
+		result = append(result, tx.Apply(v, other))
+	}
+	rt.Collections[varName] = result
+	fmt.Printf("[✔️] %s = map(%s, %s, %s)  → %d vector(es)\n", varName, collName, txName, otherName, len(result))
+	return true
 }
 
 // ── count ─────────────────────────────────────────────────────────────────────
