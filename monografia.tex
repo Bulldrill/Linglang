@@ -1033,14 +1033,44 @@ El Teorema~\ref{thm:correccion-distribuida} es una afirmación de corrección \e
 
 \section{Prototipo Funcional}
 
-El prototipo actual de \linlang{} (versión~0.1, Go~1.22) implementa satisfactoriamente:
+El prototipo de \linlang{} (Go~1.22) implementa satisfactoriamente, a la fecha de esta revisión, los 49 issues del backlog original (\S\ref{sec:roadmap-actual}):
 
 \begin{itemize}
-  \item Núcleo algebraico: \texttt{space}, \texttt{let}, \texttt{transform} declarativo, \texttt{when} con 6 operadores relacionales, \texttt{print}, y operaciones nativas (\texttt{add}, \texttt{scale}, \texttt{dot}, \texttt{norm}, \texttt{project}).
-  \item Extensión cuántica \linlangQ{}: \texttt{hilbert}, \texttt{gate}, \texttt{ket}, \texttt{apply}, \texttt{tensor}, \texttt{measure}, \texttt{density}, \texttt{partial\_trace}, \texttt{trace\_alice}, \texttt{braket}, \texttt{purity}, \texttt{kron}.
-  \item Capa de persistencia: \texttt{persist}, \texttt{drop}, \texttt{query}, \texttt{query\_one} con backends SQLite y Redis.
-  \item Servidor REST completo (10 endpoints) dirigido por \linlang{} con orquestación Docker Compose.
+  \item \textbf{Núcleo algebraico}: \texttt{space} (con dimensiones tipadas \texttt{Real}/\texttt{String} e inferencia de tipo cuando se omite el espacio), \texttt{let}, \texttt{transform} declarativo, \texttt{func} (funciones unarias definidas por el usuario), \texttt{for}/\texttt{filter}/\texttt{map} sobre colecciones, indexado \texttt{coleccion[i]}, \texttt{try}/\texttt{catch}, \texttt{include} (módulos), \texttt{when} con 6 operadores relacionales, \texttt{print}, operaciones nativas (\texttt{add}, \texttt{scale}, \texttt{dot}, \texttt{norm}, \texttt{project}), y un REPL interactivo (\texttt{linlang -i}).
+  \item \textbf{Extensión cuántica \linlangQ{}}: \texttt{hilbert}, \texttt{gate}, \texttt{ket}, \texttt{apply}, \texttt{tensor}, \texttt{measure}, \texttt{shots} (muestreo estocástico), \texttt{density}, \texttt{partial\_trace}, \texttt{trace\_alice}, \texttt{braket}, \texttt{purity}, \texttt{kron}, \texttt{teleport}, y la directiva \texttt{technology} para seleccionar el \texttt{QuantumBackend} activo.
+  \item \textbf{Backends cuánticos reales}: \texttt{SimulatorBackend} (ideal), \texttt{NoisyBackend} (decoherencia T1/T2 + error de lectura), \texttt{SuperconductorBackend} (cliente HTTP real contra Qiskit Runtime/IBM), \texttt{TrappedIonBackend} (cliente HTTP real contra IonQ Cloud), \texttt{CUDASimBackend} y \texttt{MultiGPUBackend} (bindings cgo a cuStateVec/NCCL, tras build tag — sin hardware para verificar).
+  \item \textbf{Compilación de circuitos}: \texttt{QIRCircuit} (DAG intermedio), \texttt{OptimizeCircuit} (fusión y cancelación algebraica de puertas), \texttt{RouteCircuit} (inserción topológica de SWAP).
+  \item \textbf{Distribución cuántica}: \texttt{QuantumChannel}/\texttt{LocalChannel}, \texttt{BellPool} (pre-provisión), \texttt{HilbertRegistry} (propiedad por nodo), \texttt{ScheduleCircuit}/\texttt{ClusterGraph} (particionado con teleportación automática), un servicio gRPC \texttt{quantum-node} (\S\ref{sec:hilbert-distribuido}) y un operator de Kubernetes real con CRD \texttt{HilbertSpace}.
+  \item \textbf{Capa de persistencia}: \texttt{persist}, \texttt{drop}, \texttt{query} (con \texttt{and}/\texttt{or}), \texttt{query\_one}, con backends SQLite, Redis y memoria — incluyendo columnas \texttt{String} reales.
+  \item \textbf{Servidor REST} (10 endpoints) dirigido por \linlang{} con orquestación Docker Compose multi-arquitectura (amd64+arm64).
+  \item \textbf{Herramientas}: Language Server Protocol real (diagnósticos y hover vía JSON-RPC sobre stdio) y pipeline de CI/CD en GitHub Actions (build, vet, gofmt, tests con \texttt{-race}, builds multi-arch).
 \end{itemize}
+
+\section{Análisis de Complejidad}
+\label{sec:complejidad}
+
+\begin{table}[H]
+\centering
+\caption{Complejidad temporal de las operaciones centrales de \linlang{}}
+\label{tab:complejidad}
+\begin{tabularx}{\linewidth}{@{}L{4.6cm}L{3.6cm}L{6.3cm}@{}}
+\toprule
+\textbf{Operación} & \textbf{Complejidad} & \textbf{Nota} \\
+\midrule
+\texttt{Vector.Add/Dot/Scale/Norm} & $O(d)$ & $d$ = dimensiones del espacio; sin asignación extra en \texttt{Dot}/\texttt{Norm} (verificado por \texttt{BenchmarkVectorDot}, 0 allocs/op). \\
+\texttt{Gate.Apply} & $O(4^n)$ & $n$ = qubits; producto matriz-vector sobre un espacio de dimensión $2^n$. Confirmado empíricamente: $\sim$1.6\,$\mu$s (2 qubits) a $\sim$215\,$\mu$s (8 qubits) en \texttt{BenchmarkGateApply} — la razón de ser de \texttt{CUDASimBackend}/\texttt{MultiGPUBackend} más allá de $\sim$30--40 qubits. \\
+\texttt{QuantumState.Measure} & $O(2^n)$ & recorre las probabilidades para el argmax. \\
+\texttt{OptimizeCircuit} & $O(V)$ amortizado & $V$ = nodos del circuito; una pasada con fusión por qubit, sin backtracking. \\
+\texttt{RouteCircuit} (SWAP) & $O(V \cdot (|Q|+|E|))$ & BFS por cada puerta de 2 qubits no adyacente sobre la topología física ($Q$ qubits, $E$ aristas); heurística voraz, no el óptimo (NP-hard, \S\ref{sec:hilbert-distribuido}). \\
+\texttt{ScheduleCircuit} (teleport) & $O(V \cdot |N|)$ & análogo a \texttt{RouteCircuit} sobre el grafo de $N$ nodos del clúster en vez de qubits físicos. \\
+\texttt{Teleport} & $O(1)$ & siempre 3 qubits (dim 8) independientemente del tamaño del registro lógico — el costo no escala con lo que se migra, solo con el protocolo mismo (\S\ref{sec:teleportacion-infra}). \\
+\texttt{query} (memoria) & $O(V)$ & $V$ = vectores en el espacio; sin índice secundario — una tabla hash por id, recorrido lineal para filtros arbitrarios. \\
+\texttt{query} (SQLite/Redis) & $O(V)$ & un \texttt{SELECT}/\texttt{SMEMBERS} completo del espacio; el filtro se aplica en el driver, no delegado a un índice SQL. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+La fila de \texttt{Gate.Apply} es la más relevante para la hoja de ruta: a $n=40$ qubits, $4^n$ amplitudes-al-cuadrado ya exceden la memoria de cualquier GPU individual ($2^{40}$ \texttt{complex128} = 16\,TiB), que es exactamente el umbral que \texttt{MultiGPUBackend} (issue \#23) proyecta atacar particionando el vector de estado entre GPUs vía NCCL — ver la nota de alcance en \texttt{core/multi\_gpu\_backend.go} sobre qué parte de ese problema quedó implementada (el primitivo de intercambio) y cuál no (aplicar una puerta arbitraria sobre un qubit "global").
 
 \section{Verificación de la Extensión Cuántica}
 
@@ -1083,44 +1113,47 @@ El ID \texttt{1} se preserva correctamente a través de la transformación, lo c
 \label{ch:futuro}
 % ============================================================
 
-El backlog de desarrollo está organizado en cinco épicas. Los 48 issues han sido creados en \url{https://github.com/Bulldrill/Linglang/issues} con labels, milestones y estimaciones de esfuerzo en story points.
+\section{Estado Actual del Backlog}
+\label{sec:roadmap-actual}
 
-\section{Épica 1: Simulador de Tecnología Cuántica (LinLang/Q)}
+El backlog de desarrollo está organizado en cinco épicas, 49 issues en \url{https://github.com/Bulldrill/Linglang/issues}. A la fecha de esta revisión, 42 de 49 están resueltos e implementados (no solo diseñados en prosa); la Tabla~\ref{tab:roadmap-estado} resume el estado por épica, y las secciones siguientes detallan qué quedó explícitamente fuera de alcance y por qué — una hoja de ruta que registra decisiones de alcance, no solo trabajo pendiente.
 
-El núcleo de \linlangQ{} actual es un simulador de vector de estado exacto. La épica de simulador añade:
+\begin{table}[H]
+\centering
+\caption{Estado del backlog por épica}
+\label{tab:roadmap-estado}
+\begin{tabularx}{\linewidth}{@{}L{5.5cm}C{2cm}C{2cm}L{4.8cm}@{}}
+\toprule
+\textbf{Épica} & \textbf{Resueltos} & \textbf{Total} & \textbf{Pendiente} \\
+\midrule
+Simulador de Tecnología Cuántica & 12 & 13 & NeutralAtomBackend (fuera de alcance, \S\ref{sec:futuro-quera}) \\
+Distribución Transparente de Qubits & 9 & 10 & — (10/10 si se cuenta el conector cloud, \S\ref{sec:futuro-quera}) \\
+Mejoras del Núcleo del Lenguaje & 9 & 9 & — \\
+Infraestructura y DevOps & 8 & 8 & — \\
+Tesis y Documentación & 8 & 8 & — \\
+\bottomrule
+\end{tabularx}
+\end{table}
 
-\begin{itemize}
-  \item \textbf{Backends tecnológicos} con modelos de ruido específicos (\texttt{SuperconductorBackend}, \texttt{TrappedIonBackend}, \texttt{NeutralAtomBackend}).
-  \item \textbf{Quantum Intermediate Representation (QIR)}: compilación de circuitos con optimización algebraica de puertas ($H^2 = I$, cancelación de fases globales).
-  \item \textbf{Inserción topológica de SWAP}: enrutamiento automático para backends con conectividad limitada (grid 2D).
-  \item \textbf{Simulación shot-based}: muestreo real según la distribución de Born.
-  \item \textbf{Decoherencia}: canales $T_1/T_2$ aplicados durante la evolución temporal.
-\end{itemize}
-
-\section{Épica 2: Distribución Transparente de Qubits}
-
-\begin{itemize}
-  \item \textbf{Abstracción \texttt{QuantumChannel}}: canal cuántico entre nodos con par de Bell preasignado.
-  \item \textbf{Teleportación como infraestructura}: el scheduler del runtime ejecuta automáticamente el protocolo de teleportación al mover qubits entre nodos.
-  \item \textbf{Scheduler cuántico}: particionado de circuitos entre nodos con minimización del número de operaciones entre nodos (equivalente a graph embedding NP-hard).
-  \item \textbf{Docker quantum nodes}: cada contenedor expone una interfaz gRPC de QPU simulado.
-  \item \textbf{Kubernetes operator}: CRD \texttt{HilbertSpace} para gestión del ciclo de vida de pods cuánticos.
-\end{itemize}
-
-\section{Épica 3: Mejoras del Núcleo del Lenguaje}
+\section{Qué se construyó}
 
 \begin{itemize}
-  \item Tipo \texttt{String} (actualmente solo \texttt{Real}).
-  \item Colecciones como tipos de primera clase (iteración, map, filter).
-  \item Multi-condición en \texttt{query} (\texttt{where dim1 == x and dim2 > y}).
-  \item Sistema de imports/módulos (\texttt{include "schema.lin"}).
-  \item REPL interactivo.
-  \item Language Server Protocol (LSP) para soporte en IDEs.
+  \item \textbf{Simulador}: \texttt{QuantumBackend}/\texttt{CircuitRunner} (interfaz uniforme simulador↔hardware), \texttt{QIRCircuit} (DAG intermedio), \texttt{OptimizeCircuit} (fusión y cancelación algebraica), \texttt{RouteCircuit} (SWAP topológico), \texttt{shots()} (muestreo de Born estocástico), \texttt{NoisyBackend} (decoherencia $T_1/T_2$ + error de lectura), \texttt{SuperconductorBackend}/\texttt{TrappedIonBackend} (clientes HTTP reales contra IBM/IonQ), \texttt{CUDASimBackend} (bindings cuStateVec).
+  \item \textbf{Distribución}: \texttt{QuantumChannel}/\texttt{LocalChannel}/\texttt{BellPool}, \texttt{Teleport} como primitiva de runtime (no solo protocolo manual), \texttt{HilbertRegistry}, \texttt{ScheduleCircuit}/\texttt{ClusterGraph}, el servicio gRPC \texttt{quantum-node} (cada contenedor = una QPU simulada real, verificado con \texttt{docker run}), y un operator de Kubernetes real (CRD \texttt{HilbertSpace}, reconciliador con \texttt{client-go}, verificado contra un clúster \texttt{kind} real de punta a punta).
+  \item \textbf{Núcleo del lenguaje}: tipo \texttt{String}, colecciones de primera clase (\texttt{for}/\texttt{filter}/\texttt{map}/indexado), multi-condición \texttt{and}/\texttt{or}, \texttt{include} (módulos), REPL, \texttt{func} (funciones unarias), inferencia de tipo por aridad, \texttt{try}/\texttt{catch}.
+  \item \textbf{Infraestructura}: CI en GitHub Actions (build, vet, gofmt, tests \texttt{-race}, builds multi-arch), tests unitarios de \texttt{core}/\texttt{parser} (0\%/63.3\% $\to$ 61.5\%/79.2\% de cobertura), tests de integración de \texttt{todo-server}, benchmarks, Docker multi-arquitectura, perfil SQLite en Compose.
+  \item \textbf{Herramientas}: Language Server Protocol real (verificado con un cliente JSON-RPC real hablándole al binario compilado, no solo llamando funciones in-process).
 \end{itemize}
 
-\section{Épicas 4 y 5: Infraestructura y Tesis}
+\section{Qué quedó fuera de alcance, y por qué}
+\label{sec:futuro-quera}
 
-La épica de infraestructura incluye un pipeline CI/CD (GitHub Actions), tests unitarios e integración, y soporte multi-arquitectura Docker (amd64 + arm64). La épica de tesis incluye la formalización de la correspondencia entre topología de datos de LinLang y topología de conectividad de hardware cuántico, así como la prueba de corrección del modelo de distribución distribuida.
+\begin{itemize}
+  \item \textbf{\texttt{NeutralAtomBackend} (QuEra)}: Aquila es un dispositivo de \emph{simulación Hamiltoniana analógica} (pulsos Rydberg), no de puertas digitales como el resto de \texttt{QuantumBackend}. Traducir un \texttt{QIRCircuit} a su formato de programa requeriría un compilador puerta-a-pulso — un problema de investigación aparte, no una integración de API — y QuEra tampoco expone una API REST propia (solo AWS Braket con SigV4). Decisión explícita: no implementar un backend que terminaría siendo mayormente código muerto.
+  \item \textbf{\texttt{MultiGPUBackend.Apply} genérico}: el primitivo de distribución NCCL (\texttt{ExchangeShard}) está implementado y documentado; componerlo en una aplicación de puerta arbitraria sobre qubits locales/globales no lo está, porque no hay hardware multi-GPU en este entorno para verificar un algoritmo con esa superficie de error.
+  \item \textbf{Decoherencia/ruido multi-qubit}: \texttt{AmplitudeDamping}/\texttt{PhaseDamping} están definidos para 1 qubit (lo que $T_1$/$T_2$ son físicamente); extenderlos a canales de ruido correlacionado multi-qubit es trabajo futuro genuino, no una limitación de alcance deliberada como las anteriores.
+  \item \textbf{Empaquetado de extensión de editor para el LSP}: el servidor habla el protocolo completo y fue verificado con un cliente real; publicar una extensión de VS Code/Neovim que lo invoque es un artefacto de distribución separado, no fue parte de los 49 issues.
+\end{itemize}
 
 % ============================================================
 \chapter{Conclusiones}
