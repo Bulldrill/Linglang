@@ -3,6 +3,7 @@ package parser
 import (
 	"fmt"
 	"math/rand"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -67,6 +68,11 @@ type Runtime struct {
 	// ── Persistence ────────────────────────────────────────────────────────────
 	Store       store.Backend             // nil = no persistence
 	Collections map[string][]*core.Vector // results of query statements
+
+	// included tracks paths already loaded by `include "..."` (issue #29),
+	// so re-including a file (directly or via a cycle) is a silent no-op
+	// instead of re-declaring every space/transform in it.
+	included map[string]bool
 }
 
 // RuntimeError is a catchable runtime error (issue #33): Name is what a
@@ -221,6 +227,9 @@ func (rt *Runtime) ParseLine(line string) {
 	case strings.HasPrefix(trimmed, "technology"):
 		rt.parseTechnology(trimmed)
 
+	case strings.HasPrefix(trimmed, "include "):
+		rt.parseInclude(trimmed)
+
 	case strings.HasPrefix(trimmed, "for "):
 		rt.parseForDecl(trimmed)
 
@@ -261,6 +270,40 @@ func (rt *Runtime) Parse(code string) {
 	for _, line := range strings.Split(code, "\n") {
 		rt.ParseLine(line)
 	}
+}
+
+// ── include ───────────────────────────────────────────────────────────────────
+
+// Syntax: include "path/to/file.lin"  (issue #29)
+// Loads and parses path into the same Runtime, so its space/transform/gate
+// declarations become available to the including program — a module
+// system built directly on Parse, not a separate compilation unit.
+// Re-including an already-loaded path (directly, or via a cycle) is a
+// silent no-op. Paths are resolved relative to the process's working
+// directory, the same convention main.go already uses for the top-level
+// .lin file — not relative to the including file's own directory.
+func (rt *Runtime) parseInclude(line string) {
+	path := strings.TrimPrefix(line, "include ")
+	path = strings.TrimSpace(path)
+	if len(path) >= 2 && path[0] == '"' && path[len(path)-1] == '"' {
+		path = path[1 : len(path)-1]
+	}
+
+	if rt.included == nil {
+		rt.included = map[string]bool{}
+	}
+	if rt.included[path] {
+		return
+	}
+	rt.included[path] = true
+
+	code, err := os.ReadFile(path)
+	if err != nil {
+		rt.fail("ImportError", "include '%s': %v", path, err)
+		return
+	}
+	fmt.Printf("[📦] include %s\n", path)
+	rt.Parse(string(code))
 }
 
 // ── space ─────────────────────────────────────────────────────────────────────
