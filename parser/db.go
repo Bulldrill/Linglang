@@ -16,6 +16,10 @@
 //	let x = query Space where dim OP value
 //	    Carga vectores filtrados por condición algebraica.
 //
+//	let x = query Space where dim1 OP v1 and dim2 OP v2 or dim3 OP v3
+//	    Multi-condición (issue #26): "and" liga más fuerte que "or",
+//	    como en lógica booleana ordinaria — "a and b or c" es (a and b) or c.
+//
 //	let x = query_one Space where dim OP value
 //	    Carga el primer vector que satisface la condición → rt.Vectors["x"]
 //
@@ -159,20 +163,59 @@ func (rt *Runtime) parseQueryExpr(rhs, prefix string) (*core.Space, func([]float
 		return space, nil, "", true
 	}
 
-	// Parse the condition: dim OP value
-	op, before, after := extractOperator(condExpr)
-	if op == "" {
-		fmt.Printf("[⚠️] query: operador no reconocido en '%s'\n", condExpr)
+	// Multi-condition: "and" binds tighter than "or" (issue #26), matching
+	// ordinary boolean-logic precedence — "a and b or c and d" means
+	// (a and b) or (c and d).
+	filter, label, errMsg := buildMultiConditionFilter(space, condExpr)
+	if errMsg != "" {
+		fmt.Printf("[⚠️] query: %s\n", errMsg)
 		return space, nil, "", true // return all, ignore malformed condition
+	}
+	return space, filter, label, true
+}
+
+// buildMultiConditionFilter parses a `where` clause combining one or more
+// "dim OP value" comparisons with "and"/"or" into a single predicate. On
+// success errMsg is "". On failure it names which clause was malformed and
+// why, mirroring the specific diagnostics parseQueryExpr used to print
+// inline before this supported more than one clause.
+func buildMultiConditionFilter(space *core.Space, expr string) (filter func([]float64) bool, label string, errMsg string) {
+	var orFns []func([]float64) bool
+	var orLabels []string
+
+	for _, group := range strings.Split(expr, " or ") {
+		var andFns []func([]float64) bool
+		var andLabels []string
+
+		for _, clause := range strings.Split(group, " and ") {
+			clause = strings.TrimSpace(clause)
+			fn, clauseLabel, err := singleConditionFilter(space, clause)
+			if err != "" {
+				return nil, "", err
+			}
+			andFns = append(andFns, fn)
+			andLabels = append(andLabels, clauseLabel)
+		}
+
+		orFns = append(orFns, allOf(andFns))
+		orLabels = append(orLabels, strings.Join(andLabels, " and "))
+	}
+
+	return anyOf(orFns), strings.Join(orLabels, " or "), ""
+}
+
+// singleConditionFilter parses one "dim OP value" clause.
+func singleConditionFilter(space *core.Space, clause string) (filter func([]float64) bool, label string, errMsg string) {
+	op, before, after := extractOperator(clause)
+	if op == "" {
+		return nil, "", fmt.Sprintf("operador no reconocido en '%s'", clause)
 	}
 	dimName := strings.TrimSpace(before)
 	val, err := strconv.ParseFloat(strings.TrimSpace(after), 64)
 	if err != nil {
-		fmt.Printf("[⚠️] query: valor no numérico '%s'\n", after)
-		return space, nil, "", true
+		return nil, "", fmt.Sprintf("valor no numérico '%s'", strings.TrimSpace(after))
 	}
 
-	// Find dimension index
 	dimIdx := -1
 	for i, d := range space.Dimensions {
 		if d == dimName {
@@ -181,13 +224,33 @@ func (rt *Runtime) parseQueryExpr(rhs, prefix string) (*core.Space, func([]float
 		}
 	}
 	if dimIdx < 0 {
-		fmt.Printf("[⚠️] query: dimensión '%s' no existe en espacio '%s'\n", dimName, spaceName)
-		return space, nil, "", true
+		return nil, "", fmt.Sprintf("dimensión '%s' no existe en espacio '%s'", dimName, space.Name)
 	}
 
-	filter := makeVecFilter(op, dimIdx, val)
-	label := fmt.Sprintf("%s %s %.4g", dimName, op, val)
-	return space, filter, label, true
+	return makeVecFilter(op, dimIdx, val), fmt.Sprintf("%s %s %.4g", dimName, op, val), ""
+}
+
+// allOf/anyOf combine per-clause filters into conjunctions/disjunctions.
+func allOf(fns []func([]float64) bool) func([]float64) bool {
+	return func(v []float64) bool {
+		for _, f := range fns {
+			if !f(v) {
+				return false
+			}
+		}
+		return true
+	}
+}
+
+func anyOf(fns []func([]float64) bool) func([]float64) bool {
+	return func(v []float64) bool {
+		for _, f := range fns {
+			if f(v) {
+				return true
+			}
+		}
+		return false
+	}
 }
 
 // ── count ─────────────────────────────────────────────────────────────────────
