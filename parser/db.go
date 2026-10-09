@@ -138,7 +138,7 @@ func (rt *Runtime) parseQueryOne(varName, rhs string) {
 		return
 	}
 	if len(vectors) == 0 {
-		fmt.Printf("[⚠️] query_one %s where %s → sin resultados\n", space.Name, label)
+		rt.fail("NotFound", "query_one %s where %s → sin resultados", space.Name, label)
 		return
 	}
 	rt.Vectors[varName] = vectors[0]

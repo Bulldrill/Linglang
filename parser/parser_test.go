@@ -168,6 +168,82 @@ let primero = results[0]
 	}
 }
 
+func TestTryCatchRunsCatchBodyOnMatchingError(t *testing.T) {
+	rt := NewRuntime()
+	rt.SetStore(store.NewMemoryStore())
+	rt.Parse(`
+space Tarea: id: Real, prioridad: Real
+let t1 = Tarea[1, 3]
+persist t1
+
+try {
+    let t = query_one Tarea where id == 99
+    let n = norm(t)
+}
+catch NotFound {
+    let fallback = Tarea[0, 0]
+}
+`)
+	if _, ok := rt.Vectors["t"]; ok {
+		t.Fatal("expected query_one to fail and not bind 't'")
+	}
+	if _, ok := rt.Vectors["n"]; ok {
+		t.Fatal("expected the try body to stop at the first error, never reaching norm(t)")
+	}
+	if _, ok := rt.Vectors["fallback"]; !ok {
+		t.Fatal("expected the catch body to run and bind 'fallback'")
+	}
+	if rt.LastError != nil {
+		t.Fatal("expected LastError to be cleared after the catch block handles it")
+	}
+}
+
+func TestTryCatchSkipsCatchBodyOnSuccess(t *testing.T) {
+	rt := NewRuntime()
+	rt.SetStore(store.NewMemoryStore())
+	rt.Parse(`
+space Tarea: id: Real, prioridad: Real
+let t1 = Tarea[1, 3]
+persist t1
+
+try {
+    let t = query_one Tarea where id == 1
+}
+catch NotFound {
+    let marcador = Tarea[0, 0]
+}
+`)
+	if _, ok := rt.Vectors["t"]; !ok {
+		t.Fatal("expected the try body to succeed and bind 't'")
+	}
+	if _, ok := rt.Vectors["marcador"]; ok {
+		t.Fatal("expected the catch body NOT to run when the try block succeeds")
+	}
+}
+
+func TestTryCatchUnmatchedErrorNameIsReported(t *testing.T) {
+	rt := NewRuntime()
+	rt.SetStore(store.NewMemoryStore())
+	rt.Parse(`
+space Tarea: id: Real
+let t1 = Tarea[1]
+persist t1
+
+try {
+    let t = query_one Tarea where id == 99
+}
+catch IndexOutOfRange {
+    let marcador = Tarea[0]
+}
+`)
+	if _, ok := rt.Vectors["marcador"]; ok {
+		t.Fatal("expected the catch body NOT to run: NotFound != IndexOutOfRange")
+	}
+	if rt.LastError != nil {
+		t.Fatal("expected LastError to be cleared even when no catch clause matches")
+	}
+}
+
 func TestCollectionIndexingOutOfRangeDoesNotPanic(t *testing.T) {
 	rt := NewRuntime()
 	rt.SetStore(store.NewMemoryStore())

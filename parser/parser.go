@@ -54,9 +54,35 @@ type Runtime struct {
 	inFor      bool
 	pendingFor *pendingForLoop
 
+	// multi-line `try { } catch Name { }` state (issue #33)
+	inTry         bool
+	awaitingCatch bool
+	inCatch       bool
+	pendingTry    *pendingTryBlock
+
+	// LastError is the most recent catchable runtime error, set by fail()
+	// and consumed by finalizeTry(). nil outside of try-block execution.
+	LastError *RuntimeError
+
 	// ── Persistence ────────────────────────────────────────────────────────────
 	Store       store.Backend             // nil = no persistence
 	Collections map[string][]*core.Vector // results of query statements
+}
+
+// RuntimeError is a catchable runtime error (issue #33): Name is what a
+// `catch Name { }` clause matches against, Message is the same diagnostic
+// text that would otherwise just be printed with "[❌]".
+type RuntimeError struct {
+	Name    string
+	Message string
+}
+
+// pendingTryBlock accumulates a try/catch statement across both its
+// bodies until the catch block's closing '}'.
+type pendingTryBlock struct {
+	tryBody   []string
+	catchName string
+	catchBody []string
 }
 
 // pendingForLoop accumulates a `for` loop body until its closing '}'.
@@ -126,6 +152,43 @@ func (rt *Runtime) ParseLine(line string) {
 		return
 	}
 
+	// ── Inside a `try { }` body ───────────────────────────────────────────────
+	if rt.inTry {
+		if trimmed == "}" {
+			rt.inTry = false
+			rt.awaitingCatch = true
+			return
+		}
+		rt.pendingTry.tryBody = append(rt.pendingTry.tryBody, trimmed)
+		return
+	}
+
+	// ── Between `try { }` and `catch Name { }` ───────────────────────────────
+	if rt.awaitingCatch {
+		rt.awaitingCatch = false
+		if !strings.HasPrefix(trimmed, "catch ") {
+			fmt.Printf("[❌] try: se esperaba 'catch <Nombre> {' tras el bloque try, se encontró: %s\n", trimmed)
+			rt.pendingTry = nil
+			return
+		}
+		name := strings.TrimPrefix(trimmed, "catch ")
+		name = strings.TrimSuffix(strings.TrimSpace(name), "{")
+		rt.pendingTry.catchName = strings.TrimSpace(name)
+		rt.inCatch = true
+		return
+	}
+
+	// ── Inside a `catch Name { }` body ───────────────────────────────────────
+	if rt.inCatch {
+		if trimmed == "}" {
+			rt.inCatch = false
+			rt.finalizeTry()
+			return
+		}
+		rt.pendingTry.catchBody = append(rt.pendingTry.catchBody, trimmed)
+		return
+	}
+
 	// ── Inside a `for` loop body ─────────────────────────────────────────────
 	if rt.inFor {
 		if trimmed == "}" {
@@ -160,6 +223,10 @@ func (rt *Runtime) ParseLine(line string) {
 
 	case strings.HasPrefix(trimmed, "for "):
 		rt.parseForDecl(trimmed)
+
+	case trimmed == "try {" || trimmed == "try{":
+		rt.inTry = true
+		rt.pendingTry = &pendingTryBlock{}
 
 	case strings.HasPrefix(trimmed, "space "):
 		rt.parseSpace(trimmed)
@@ -354,7 +421,7 @@ func (rt *Runtime) parseCollectionIndex(varName, collName, rhs string) {
 	}
 	coll := rt.Collections[collName]
 	if idx < 0 || idx >= len(coll) {
-		fmt.Printf("[❌] %s[%d]: fuera de rango (len=%d)\n", collName, idx, len(coll))
+		rt.fail("IndexOutOfRange", "%s[%d]: fuera de rango (len=%d)", collName, idx, len(coll))
 		return
 	}
 	rt.Vectors[varName] = coll[idx]
@@ -426,7 +493,7 @@ func (rt *Runtime) parseFuncCall(varName, rhs string) {
 		v1 := rt.Vectors[strings.TrimSpace(args[0])]
 		v2 := rt.Vectors[strings.TrimSpace(args[1])]
 		if v1 == nil || v2 == nil {
-			fmt.Println("[❌] dot: vector(es) no encontrado(s)")
+			rt.fail("NotFound", "dot: vector(es) no encontrado(s)")
 			return
 		}
 		result := v1.Dot(v2)
@@ -438,7 +505,7 @@ func (rt *Runtime) parseFuncCall(varName, rhs string) {
 		// norm(v) → scalar
 		v := rt.Vectors[strings.TrimSpace(args[0])]
 		if v == nil {
-			fmt.Printf("[❌] norm: vector '%s' no encontrado\n", strings.TrimSpace(args[0]))
+			rt.fail("NotFound", "norm: vector '%s' no encontrado", strings.TrimSpace(args[0]))
 			return
 		}
 		result := v.Norm()
@@ -449,7 +516,7 @@ func (rt *Runtime) parseFuncCall(varName, rhs string) {
 		// scale(v, factor) → vector in same space
 		v := rt.Vectors[strings.TrimSpace(args[0])]
 		if v == nil {
-			fmt.Printf("[❌] scale: vector '%s' no encontrado\n", strings.TrimSpace(args[0]))
+			rt.fail("NotFound", "scale: vector '%s' no encontrado", strings.TrimSpace(args[0]))
 			return
 		}
 		factor := 1.0
@@ -470,7 +537,7 @@ func (rt *Runtime) parseFuncCall(varName, rhs string) {
 		v1 := rt.Vectors[strings.TrimSpace(args[0])]
 		v2 := rt.Vectors[strings.TrimSpace(args[1])]
 		if v1 == nil || v2 == nil {
-			fmt.Println("[❌] add: vector(es) no encontrado(s)")
+			rt.fail("NotFound", "add: vector(es) no encontrado(s)")
 			return
 		}
 		result, err := v1.Add(v2)
@@ -512,12 +579,12 @@ func (rt *Runtime) parseProject(varName, rhs string) {
 
 	v := rt.Vectors[srcName]
 	if v == nil {
-		fmt.Printf("[❌] project: vector '%s' no encontrado\n", srcName)
+		rt.fail("NotFound", "project: vector '%s' no encontrado", srcName)
 		return
 	}
 	targetSpace := rt.Spaces[targetName]
 	if targetSpace == nil {
-		fmt.Printf("[❌] project: espacio '%s' no encontrado\n", targetName)
+		rt.fail("NotFound", "project: espacio '%s' no encontrado", targetName)
 		return
 	}
 	projected, _ := v.Project(targetSpace)
@@ -574,6 +641,57 @@ func (rt *Runtime) finalizeFor() {
 		}
 	}
 	fmt.Printf("[✔️] for %s in %s  → %d iteración(es)\n", pf.varName, pf.collName, len(coll))
+}
+
+// ── try / catch ──────────────────────────────────────────────────────────────
+
+// fail records a catchable runtime error (issue #33) and prints the usual
+// "[❌]" diagnostic. A try/catch never changes what gets printed — only
+// whether execution stops and a catch block runs — so code outside any
+// try block behaves exactly as it did before this error became catchable.
+//
+// Wired into a representative subset of "not found" / "out of range"
+// error sites (query_one, collection indexing, vector/space lookups in
+// project and the classical dot/norm/scale/add builtins) rather than
+// every print site in the interpreter — those are the runtime conditions
+// a program actually wants to recover from, as opposed to malformed
+// syntax, which is a program bug to fix, not a condition to catch.
+func (rt *Runtime) fail(name, format string, args ...any) {
+	msg := fmt.Sprintf(format, args...)
+	rt.LastError = &RuntimeError{Name: name, Message: msg}
+	fmt.Printf("[❌] %s\n", msg)
+}
+
+// finalizeTry runs the accumulated try-body line by line, stopping at the
+// first line that calls fail(). If none did, the catch block never runs —
+// try/catch is a no-op for a successful try. If one did and its error name
+// matches the catch clause (or the catch clause is empty, catching
+// anything), the catch-body runs instead.
+func (rt *Runtime) finalizeTry() {
+	pt := rt.pendingTry
+	rt.pendingTry = nil
+	rt.LastError = nil
+
+	for _, line := range pt.tryBody {
+		rt.ParseLine(line)
+		if rt.LastError != nil {
+			break
+		}
+	}
+
+	if rt.LastError == nil {
+		return
+	}
+	caught := *rt.LastError
+	rt.LastError = nil
+
+	if pt.catchName != "" && pt.catchName != caught.Name {
+		fmt.Printf("[❌] try: error '%s' no coincide con catch '%s' — sin manejar\n", caught.Name, pt.catchName)
+		return
+	}
+	for _, line := range pt.catchBody {
+		rt.ParseLine(line)
+	}
 }
 
 // ── when ──────────────────────────────────────────────────────────────────────
