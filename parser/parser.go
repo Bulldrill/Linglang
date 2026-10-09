@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -488,14 +489,27 @@ func (rt *Runtime) parseVectorLiteral(varName, rhs string) {
 	closeIdx := strings.Index(rhs, "]")
 	spName := strings.TrimSpace(rhs[:openIdx])
 	valStr := strings.TrimSpace(rhs[openIdx+1 : closeIdx])
-
-	sp, ok := rt.Spaces[spName]
-	if !ok {
-		fmt.Printf("[❌] Espacio no encontrado: %s\n", spName)
-		return
-	}
-
 	tokens := splitRespectingQuotes(valStr)
+
+	var sp *core.Space
+	if spName == "" {
+		// Type inference (issue #32): [v1, v2, ...] with no space name
+		// deduces the space from how many dimensions the literal has.
+		inferred, err := rt.inferSpaceByArity(len(tokens))
+		if err != nil {
+			rt.fail("TypeInferenceError", "%v", err)
+			return
+		}
+		sp = inferred
+		fmt.Printf("[🔮] %s: tipo inferido = %s (%d dimensiones)\n", varName, sp.Name, len(tokens))
+	} else {
+		var ok bool
+		sp, ok = rt.Spaces[spName]
+		if !ok {
+			fmt.Printf("[❌] Espacio no encontrado: %s\n", spName)
+			return
+		}
+	}
 	nums := make([]float64, len(tokens))
 	strVals := map[string]string{}
 	for i, raw := range tokens {
@@ -515,7 +529,35 @@ func (rt *Runtime) parseVectorLiteral(varName, rhs string) {
 		vec.SetString(dim, val)
 	}
 	rt.Vectors[varName] = vec
-	fmt.Printf("[✔️] Vector %s creado en espacio %s  %v\n", varName, spName, vec.Display())
+	fmt.Printf("[✔️] Vector %s creado en espacio %s  %v\n", varName, sp.Name, vec.Display())
+}
+
+// inferSpaceByArity deduces which declared space a bracketed literal with
+// n values belongs to (issue #32): the unique space whose dimension count
+// equals n. Ambiguous (several spaces share that count) or unmatched (none
+// do) arity is reported as a TypeInferenceError rather than guessed at.
+func (rt *Runtime) inferSpaceByArity(n int) (*core.Space, error) {
+	var matches []*core.Space
+	for _, sp := range rt.Spaces {
+		if len(sp.Dimensions) == n {
+			matches = append(matches, sp)
+		}
+	}
+	switch len(matches) {
+	case 0:
+		return nil, fmt.Errorf("inferencia de tipo: ningún espacio declarado tiene %d dimensiones", n)
+	case 1:
+		return matches[0], nil
+	default:
+		names := make([]string, len(matches))
+		for i, sp := range matches {
+			names[i] = sp.Name
+		}
+		sort.Strings(names)
+		return nil, fmt.Errorf(
+			"inferencia de tipo: %d espacios tienen %d dimensiones (%s) — ambiguo, especifica el nombre",
+			len(matches), n, strings.Join(names, ", "))
+	}
 }
 
 // Function call: fn(arg1, arg2, ...)

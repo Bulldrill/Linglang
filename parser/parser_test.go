@@ -146,6 +146,53 @@ for t in todas {
 	}
 }
 
+func TestVectorLiteralTypeInferenceWhenUnambiguous(t *testing.T) {
+	rt := NewRuntime()
+	rt.Parse(`
+space Personas: edad: Real, ingresos: Real, energia: Real
+space Mascotas: edad: Real, especie: Real
+let p1 = [25, 40000, 0.8]
+let m1 = [3, 1]
+`)
+	p1 := rt.Vectors["p1"]
+	if p1 == nil || p1.Space.Name != "Personas" {
+		t.Fatalf("expected p1 inferred as Personas, got %v", p1)
+	}
+	m1 := rt.Vectors["m1"]
+	if m1 == nil || m1.Space.Name != "Mascotas" {
+		t.Fatalf("expected m1 inferred as Mascotas, got %v", m1)
+	}
+}
+
+func TestVectorLiteralTypeInferenceAmbiguousReportsError(t *testing.T) {
+	rt := NewRuntime()
+	rt.Parse(`
+space A: x: Real, y: Real
+space B: w: Real, z: Real
+let v = [1, 2]
+`)
+	if _, ok := rt.Vectors["v"]; ok {
+		t.Fatal("expected no vector bound when inference is ambiguous")
+	}
+	if rt.LastError == nil || rt.LastError.Name != "TypeInferenceError" {
+		t.Fatalf("expected a catchable TypeInferenceError, got %+v", rt.LastError)
+	}
+}
+
+func TestVectorLiteralTypeInferenceNoMatchReportsError(t *testing.T) {
+	rt := NewRuntime()
+	rt.Parse(`
+space A: x: Real, y: Real
+let v = [1, 2, 3]
+`)
+	if _, ok := rt.Vectors["v"]; ok {
+		t.Fatal("expected no vector bound when no space matches the arity")
+	}
+	if rt.LastError == nil || rt.LastError.Name != "TypeInferenceError" {
+		t.Fatalf("expected a catchable TypeInferenceError, got %+v", rt.LastError)
+	}
+}
+
 func TestCollectionIndexing(t *testing.T) {
 	rt := NewRuntime()
 	rt.SetStore(store.NewMemoryStore())
