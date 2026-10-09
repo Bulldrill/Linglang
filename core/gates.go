@@ -127,6 +127,19 @@ func BuiltinCNOT(h *HilbertSpace) *Gate {
 	})
 }
 
+// BuiltinSWAP returns the SWAP gate on a 2-qubit (dim=4) system: exchanges
+// the states of the two qubits. Basis order: |00⟩, |01⟩, |10⟩, |11⟩.
+//
+//	SWAP = [[1,0,0,0],[0,0,1,0],[0,1,0,0],[0,0,0,1]]
+func BuiltinSWAP(h *HilbertSpace) *Gate {
+	return NewGate("SWAP", h, h, [][]complex128{
+		{1, 0, 0, 0},
+		{0, 0, 1, 0},
+		{0, 1, 0, 0},
+		{0, 0, 0, 1},
+	})
+}
+
 // BuiltinI returns the identity gate for any dimension.
 func BuiltinI(h *HilbertSpace) *Gate {
 	n := h.Dim
