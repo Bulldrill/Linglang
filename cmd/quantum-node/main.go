@@ -107,7 +107,15 @@ func main() {
 	addr := flag.String("addr", ":50051", "dirección de escucha gRPC")
 	flag.Parse()
 
-	backend := core.NewSimulatorBackend()
+	// Honors LINLANG_QUANTUM_BACKEND (issue #13's technology names), the
+	// same variable core.OpenQuantumBackend already reads — so the
+	// Kubernetes operator (issue #21) setting it from
+	// HilbertSpaceSpec.Technology on the pod actually selects the backend,
+	// instead of this binary always hardcoding the ideal simulator.
+	backend, err := core.OpenQuantumBackend("")
+	if err != nil {
+		log.Fatalf("quantum-node: %v", err)
+	}
 	srv := grpc.NewServer()
 	pb.RegisterQuantumNodeServer(srv, &nodeServer{backend: backend})
 	reflection.Register(srv) // grpcurl/evans discoverability for ops debugging

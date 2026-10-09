@@ -1,0 +1,121 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.5
+  name: hilbertspaces.linlang.dev
+spec:
+  group: linlang.dev
+  names:
+    kind: HilbertSpace
+    listKind: HilbertSpaceList
+    plural: hilbertspaces
+    shortNames:
+    - hspace
+    singular: hilbertspace
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.dim
+      name: Dim
+      type: integer
+    - jsonPath: .spec.technology
+      name: Technology
+      type: string
+    - jsonPath: .spec.replicas
+      name: Replicas
+      type: integer
+    - jsonPath: .status.readyReplicas
+      name: Ready
+      type: integer
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: HilbertSpace is the Schema for the hilbertspaces API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: |-
+              HilbertSpaceSpec describes a quantum subspace as a Kubernetes resource
+              (issue #21): its dimension, which QuantumBackend technology its pods
+              should run (core.OpenQuantumBackend's technology names), and how many
+              quantum-node (issue #20) replicas should back it.
+            properties:
+              dim:
+                description: Dim is the Hilbert space dimension (e.g. 2^n for an n-qubit
+                  register).
+                format: int32
+                minimum: 2
+                type: integer
+              replicas:
+                default: 1
+                description: |-
+                  Replicas is the desired number of quantum-node pods backing this
+                  space. More than one models a replicated/load-balanced QPU pool;
+                  entanglement tracking (Status.EntangledWith) is independent of pod
+                  count.
+                format: int32
+                minimum: 1
+                type: integer
+              technology:
+                default: simulator
+                description: |-
+                  Technology selects the simulated/real backend each pod runs —
+                  simulator | superconductor | trapped-ion | gpu | noisy — mirroring
+                  core.OpenQuantumBackend's technology names (issue #13).
+                type: string
+            required:
+            - dim
+            type: object
+          status:
+            description: |-
+              HilbertSpaceStatus reports the operator's observed state: pod lifecycle
+              (ReadyReplicas vs. Spec.Replicas) and active entanglement — which other
+              HilbertSpace resources this one currently shares a Bell pair with via a
+              QuantumChannel (core.HilbertRegistry, issue #16), the "estado de
+              entrelazamiento activo" the issue asks the operator to track.
+            properties:
+              entangledWith:
+                description: |-
+                  EntangledWith lists the names of other HilbertSpace resources this
+                  one is currently entangled with (set externally, e.g. by a scheduler
+                  invoking core.Teleport/ScheduleCircuit — the operator surfaces this
+                  state, it does not itself run quantum protocols).
+                items:
+                  type: string
+                type: array
+              phase:
+                default: Pending
+                description: |-
+                  HilbertSpacePhase is the operator's coarse-grained lifecycle state for a
+                  HilbertSpace, surfaced via `kubectl get hilbertspaces`.
+                type: string
+              readyReplicas:
+                format: int32
+                type: integer
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
