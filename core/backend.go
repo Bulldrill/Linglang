@@ -183,7 +183,13 @@ func OpenQuantumBackend(technology string) (QuantumBackend, error) {
 				"(requiere 'go build -tags cuda' y el toolkit NVIDIA cuQuantum instalado)", technology)
 		}
 		return cudaBackendFactory()
+	case "noisy":
+		// Figuras publicadas de hardware superconductor (misma tabla que
+		// SuperconductorBackend.NoiseModel): ~100μs de coherencia, ~1%
+		// error de lectura, con un tiempo de puerta ilustrativo de 100ns
+		// (issues #11, #12). Solo cubre 1 qubit — ver NoisyBackend.
+		return NewNoisyBackend(NoiseModel{T1: 100e-6, T2: 100e-6, ReadoutError: 0.01}, 100e-9), nil
 	default:
-		return nil, fmt.Errorf("technology '%s' no reconocida (simulator | superconductor | trapped-ion | gpu)", technology)
+		return nil, fmt.Errorf("technology '%s' no reconocida (simulator | superconductor | trapped-ion | gpu | noisy)", technology)
 	}
 }
