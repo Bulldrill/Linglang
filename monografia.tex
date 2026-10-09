@@ -300,6 +300,39 @@ OpenQASM & Ensamblador cuántico & LinLang/Q opera a nivel de abstracción más 
 \end{tabularx}
 \end{table}
 
+\subsection{Comparativa Detallada con Lenguajes Cuánticos Establecidos}
+\label{sec:comparativa-detallada}
+
+La fila de la tabla anterior dedicada a Qiskit/Q\#/Cirq/OpenQASM resume la relación en una frase; esta sección la desarrolla lenguaje por lenguaje, sobre cuatro ejes: modelo de ejecución, sistema de tipos, soporte nativo de distribución, e integración con cómputo clásico.
+
+\begin{table}[H]
+\centering
+\caption{\linlangQ{} frente a Qiskit, Q\#, Cirq y OpenQASM}
+\label{tab:comparativa-detallada}
+\begin{tabularx}{\linewidth}{@{}L{1.8cm}L{3.3cm}L{3.3cm}L{2.3cm}L{3.3cm}@{}}
+\toprule
+\textbf{Lenguaje} & \textbf{Modelo de ejecución} & \textbf{Sistema de tipos} & \textbf{Distribución nativa} & \textbf{Integración clásica} \\
+\midrule
+Qiskit & API Python que construye un objeto \texttt{QuantumCircuit}, transpilado y enviado a un backend (simulador o IBM Quantum) & Dinámico (Python); los circuitos son datos en tiempo de ejecución, no un tipo del lenguaje & No — el usuario orquesta multi-backend manualmente con el SDK & Total (es una librería Python); sin relación algebraica con el cómputo clásico \\
+\addlinespace
+Q\# & Lenguaje dedicado, compilado; \texttt{operation}/\texttt{function} con \texttt{Qubit} como tipo primitivo gestionado por el runtime (\texttt{use}/\texttt{borrow}) & Estático, con \texttt{Qubit} opaco (no se puede copiar ni inspeccionar su amplitud) & No — el modelo asume un único QPU lógico; el runtime de ejecución puede particionar, pero no es parte del lenguaje & Fuerte (host .NET/Python), pero el código cuántico y clásico son lenguajes/tipos distintos \\
+\addlinespace
+Cirq & API Python centrada en \texttt{Circuit}/\texttt{Moment}, con foco en NISQ y control fino de la disposición temporal de puertas & Dinámico (Python), igual que Qiskit & No — orientado a un único dispositivo o simulador por ejecución & Total (librería Python), misma limitación que Qiskit \\
+\addlinespace
+OpenQASM & Lenguaje de ensamblador: lista plana de instrucciones de puertas sobre registros de qubits/bits clásicos & Estático pero mínimo (\texttt{qubit}, \texttt{bit}); sin abstracción algebraica & No — es el formato de intercambio, no una capa de orquestación & Ninguna; es el objetivo de compilación de Qiskit/Cirq/Q\#, no un lenguaje de autoría \\
+\addlinespace
+\textbf{\linlangQ{}} & El mismo \texttt{Runtime} que ejecuta el núcleo clásico; \texttt{apply}/\texttt{measure} se resuelven contra un \texttt{QuantumBackend} intercambiable (simulador, GPU, IBM, IonQ) & Estático a nivel de espacio: \texttt{HilbertSpace} es una instancia de \texttt{Space} sobre $\mathbb{C}$, con la misma sintaxis \texttt{space}/\texttt{let} que los vectores clásicos & \textbf{Sí} — \texttt{QuantumChannel}, \texttt{Teleport} y \texttt{ScheduleCircuit} son primitivas del lenguaje/runtime, no una capa externa (\S\ref{sec:hilbert-distribuido}) & Total por construcción: no hay dos lenguajes — \texttt{space}, \texttt{let}, \texttt{transform} son los mismos para $\mathbb{R}^n$ y $\mathbb{C}^n$ \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Dos diferencias merecen explicitarse más allá de la tabla:
+
+\begin{itemize}
+  \item \textbf{Unificación clásico-cuántica.} Qiskit, Cirq y Q\# tratan lo cuántico como un subsistema que un programa \emph{clásico} invoca (una librería o un lenguaje huésped distinto). \linlangQ{} no introduce un segundo lenguaje: \texttt{hilbert} es a \texttt{space} lo que $\mathbb{C}^n$ es a $\mathbb{R}^n$, y el mismo \texttt{Runtime} interpreta ambos. La contribución no es un nuevo lenguaje cuántico, sino la demostración de que la extensión es innecesaria si el núcleo ya es álgebra lineal.
+  \item \textbf{Distribución como primitiva, no como infraestructura externa.} Ninguno de los cuatro lenguajes comparados ofrece una primitiva de \emph{migración} de un qubit entre dispositivos — la pregunta no se plantea porque todos asumen un único QPU lógico por ejecución. \texttt{teleport(psi)} y \texttt{ScheduleCircuit} (\S\ref{sec:hilbert-distribuido}, issues \#14, \#18) convierten esa migración en una llamada de runtime, en la misma posición sintáctica que \texttt{persist} convierte el almacenamiento en una llamada de runtime (Capítulo~\ref{ch:persistencia}).
+\end{itemize}
+
 % ============================================================
 \chapter{Diseño del Lenguaje}
 \label{ch:diseno}
@@ -871,6 +904,127 @@ GPU/CUDA & N/A & N/A & exacto & \texttt{CUDASimBackend} \\
 \bottomrule
 \end{tabularx}
 \end{table}
+
+\section{Teleportación como Primitiva de Infraestructura}
+\label{sec:teleportacion-infra}
+
+La Sección~\ref{sec:hilbert-distribuido} estableció \emph{por qué} la teleportación es la única primitiva de migración físicamente consistente. Esta sección trata la teleportación \emph{como} primitiva de infraestructura: su costo, su latencia, sus modos de falla y su composición — las preguntas que se le hacen a cualquier operación de un runtime distribuido, no solo a un protocolo cuántico.
+
+\subsection{Modelo de costo}
+
+Cada invocación de \texttt{core.Teleport(psi, ch)} consume exactamente:
+
+\begin{itemize}
+  \item 1 par de Bell (\texttt{ShareBellPair}) — generable por adelantado vía \texttt{BellPool.Refill} (issue \#17), sacando la latencia de generación del camino crítico.
+  \item 2 bits clásicos de corrección (\texttt{SendClassical}/\texttt{RecvClassical}).
+  \item $O(1)$ puertas locales (\texttt{CNOT}, \texttt{H} en Alice; $X^{m_1}Z^{m_0}$ en Bob) — independiente de la dimensión del resto del sistema.
+\end{itemize}
+
+El costo no depende de con qué otros qubits $\ket{\psi}$ esté entrelazado antes de la migración: la Definición~\ref{def:teleportacion-ruteo} migra un qubit lógico, y cualquier entrelazamiento con otros qubits se preserva porque la teleportación actúa como la identidad sobre los grados de libertad que no toca — el protocolo de la Sección~\ref{sec:formalizacion-algebra} se aplica igual si $\ket{\psi}$ es parte de un estado más grande.
+
+\subsection{Latencia: la cota es clásica, no cuántica}
+
+Un error conceptual común es esperar que el entrelazamiento permita transmitir información más rápido que la luz. No es así, y el protocolo lo deja ver explícitamente:
+
+\begin{proposition}[No hay señalización superluminal]
+\label{prop:no-signaling}
+Bob no puede extraer ninguna información sobre $\ket{\psi}$ a partir de su qubit \emph{antes} de recibir los bits clásicos $(m_0, m_1)$ de Alice.
+\end{proposition}
+\begin{proof}[Justificación]
+Antes de la corrección, el qubit de Bob es $\density_{\text{Bob}} = I/2$ (Sección~\ref{sec:teleportacion-infra}, verificado en \texttt{examples/teleportacion.lin}: $\tr(\density_{\text{Bob}}^2) = 0.5$) — la mezcla maximal, \emph{independiente de $\ket{\psi}$}. Cualquier medición de Bob sobre su qubit, sin los bits de Alice, produce una distribución de probabilidad idéntica sin importar qué $\ket{\psi}$ se esté teleportando. No hay información que extraer.
+\end{proof}
+
+En consecuencia, la latencia de \texttt{Teleport} está acotada inferiormente por la latencia de \texttt{SendClassical}/\texttt{RecvClassical} — en un despliegue real, el tiempo de ida y vuelta de la red entre nodos. \texttt{LocalChannel} (ambos extremos en el mismo proceso) tiene esa latencia en $\approx 0$; un \texttt{QuantumChannel} real entre nodos físicos (issue \#17, trabajo futuro) no puede bajar de la latencia de la red subyacente, exactamente como cualquier otra primitiva de migración distribuida.
+
+\subsection{Modos de falla}
+
+\begin{remark}[La migración cuántica no es reintentable a medio camino]
+A diferencia de una migración de proceso clásica —donde, si la red falla, el estado origen sigue intacto y la operación puede reintentarse— la teleportación tiene un punto de no retorno: una vez que Alice mide sus dos qubits (paso 3, Sección~\ref{sec:formalizacion-algebra}), el estado original $\ket{\psi}$ ha sido destruido en el origen. Si \texttt{SendClassical} falla \emph{después} de esa medición, $(m_0, m_1)$ se pierden y $\ket{\psi}$ es irrecuperable — no hay una copia de respaldo que el no-clonación permita conservar. Un runtime distribuido de producción sobre \texttt{QuantumChannel} necesitaría, por tanto, confirmar la entrega de los bits clásicos \emph{antes} de considerar la migración iniciada, no después — al revés de la semántica \emph{commit-then-notify} habitual en sistemas clásicos.
+\end{remark}
+
+\subsection{Composición: la teleportación es asociativa}
+
+\begin{proposition}[Composición de teleportaciones]
+\label{prop:teleport-compose}
+Sea $\ket{\psi}$ en el nodo $A$. Teleportar $\ket{\psi}$ de $A$ a $B$ y luego de $B$ a $C$ produce el mismo estado final en $C$ que teleportar directamente de $A$ a $C$ (suponiendo un canal $A$-$C$ disponible).
+\end{proposition}
+\begin{proof}[Justificación]
+Cada aplicación de \texttt{Teleport} termina con el receptor en posesión exacta de $\ket{\psi}$ (Sección~\ref{sec:formalizacion-algebra}; \texttt{core/teleport\_test.go::TestTeleportRecoversState} lo verifica para los 4 resultados de medición posibles, no solo el caso determinista). La segunda teleportación, por tanto, parte de $\ket{\psi}$ exacto en $B$ — idéntica precondición a la que tendría una teleportación directa $A\to C$. Por inducción, una cadena de $n$ teleportaciones $A\to n_1\to\cdots\to C$ es observacionalmente indistinguible de una teleportación directa $A\to C$.
+\end{proof}
+
+Esta proposición es la que hace de \texttt{Teleport} una primitiva \emph{compuesta de infraestructura} y no solo un protocolo de laboratorio: \texttt{ScheduleCircuit} (issue \#18) puede insertar una secuencia de teleportaciones a lo largo de un camino del \texttt{ClusterGraph} sin preocuparse de que el encadenamiento introduzca error — a diferencia de, por ejemplo, encadenar operaciones con ruido, donde los errores sí se acumulan.
+
+\section{Compilación de Circuitos que Preserva la Topología}
+\label{sec:compilacion-topologica}
+
+Entre el circuito que el programador escribe en \linlangQ{} y el hardware (o clúster) que lo ejecuta hay una tubería de compilación de cuatro etapas: \texttt{QIRCircuit} (representación intermedia, \S\ref{sec:puertas-compuestas}, issue \#7) $\to$ \texttt{OptimizeCircuit} (simplificación algebraica, issue \#8) $\to$ \texttt{RouteCircuit}/\texttt{ScheduleCircuit} (adaptación a la conectividad física, issues \#9, \#18) $\to$ ejecución en un \texttt{QuantumBackend}. Esta sección formaliza la propiedad que las dos últimas etapas deben preservar: que el circuito compilado calcula \emph{el mismo resultado} que el original, modulo el re-etiquetado de qubits que la adaptación topológica introduce.
+
+\begin{theorem}[\texttt{RouteCircuit} preserva la semántica]
+\label{thm:route-preserves-semantics}
+Sea $C$ un circuito y $\sigma: \{0,\ldots,n-1\} \to \{0,\ldots,n-1\}$ el mapeo lógico→físico final que devuelve \texttt{RouteCircuit(C, topo)}. El circuito ruteado $C'$, ejecutado desde el mismo estado inicial, produce el estado que $C$ habría producido, con los qubits permutados según $\sigma$.
+\end{theorem}
+\begin{proof}[Justificación]
+\texttt{RouteCircuit} solo inserta puertas \texttt{SWAP} entre pasos de $C$; nunca modifica una puerta de $C$ ni su orden relativo (Sección~\ref{sec:puertas-compuestas}: \texttt{TopoOrder} ya es válido y se preserva). Una puerta \texttt{SWAP} es, por definición, el operador de permutación de dos factores del espacio producto: $\textsc{SWAP}(\ket{a}\otimes\ket{b}) = \ket{b}\otimes\ket{a}$. Insertar \textsc{SWAP}s entre dos aplicaciones de una puerta $G$ sobre un qubit lógico $q$ es algebraicamente equivalente a aplicar $G$ sobre la posición física donde $q$ resida en ese momento —exactamente lo que \texttt{swapPhysicalAssignment} rastrea—, de modo que el producto de operadores que efectivamente se ejecuta es el mismo que el de $C$, conjugado por las permutaciones de las \textsc{SWAP}s insertadas. Como toda permutación es invertible, el estado de $C'$ es el de $C$ con los qubits reetiquetados según $\sigma$, nunca un estado físicamente distinto.
+\end{proof}
+
+\begin{theorem}[\texttt{ScheduleCircuit} preserva la semántica entre nodos]
+\label{thm:schedule-preserves-semantics}
+Sea $C$ un circuito y $\mathit{ownerOf}$ una asignación inicial de qubits a nodos. El circuito particionado que produce \texttt{ScheduleCircuit(C, ownerOf, cluster)} —ejecutando cada \texttt{TeleportStep} donde se indica— produce el mismo resultado que ejecutar $C$ íntegramente en un solo nodo.
+\end{theorem}
+\begin{proof}[Justificación]
+Análogo al Teorema~\ref{thm:route-preserves-semantics}, sustituyendo \textsc{SWAP} (permutación local, instantánea) por \texttt{Teleport} (migración entre nodos, con latencia clásica — \S\ref{sec:teleportacion-infra}). Por la Proposición~\ref{prop:teleport-compose}, cada \texttt{TeleportStep} entrega el qubit migrado \emph{exacto} a su destino, de modo que, en el instante en que una puerta multi-qubit se ejecuta, todos sus qubits están co-localizados con el mismo estado que tendrían en un único nodo. La única diferencia observable entre $C$ particionado y $C$ en un solo nodo es temporal (la latencia de las migraciones), nunca en el resultado final.
+\end{proof}
+
+Ambos teoremas son, deliberadamente, afirmaciones de \emph{corrección}, no de \emph{optimalidad}: ni \texttt{RouteCircuit} ni \texttt{ScheduleCircuit} pretenden minimizar el número de \textsc{SWAP}s o teleportaciones (ese mínimo es el problema NP-hard de graph embedding, \S\ref{sec:hilbert-distribuido}, issue \#19) — solo garantizan que, cualquiera sea la ruta elegida, el resultado computado es correcto.
+
+% ============================================================
+\chapter{Corrección del Modelo de Distribución Cuántica}
+\label{ch:correccion}
+% ============================================================
+
+Los capítulos anteriores establecieron, por separado: que la teleportación recupera $\ket{\psi}$ exactamente (\S\ref{sec:formalizacion-algebra}), que es la única primitiva de migración consistente con el no-clonación (Proposición~\ref{prop:no-cloning}), que compone sin degradación (Proposición~\ref{prop:teleport-compose}), y que tanto el ruteo intra-dispositivo como el particionado entre nodos preservan la semántica del circuito (Teoremas~\ref{thm:route-preserves-semantics} y~\ref{thm:schedule-preserves-semantics}). Este capítulo combina esos resultados en un único teorema: el modelo de distribución completo —\texttt{QuantumChannel} + \texttt{Teleport} + \texttt{RouteCircuit} + \texttt{ScheduleCircuit}— es \emph{observacionalmente equivalente} a ejecutar el mismo circuito en un único nodo sin distribución.
+
+\section{Enunciado}
+
+\begin{theorem}[Corrección del modelo de distribución]
+\label{thm:correccion-distribuida}
+Sea $C$ un circuito representado como \texttt{QIRCircuit}, $\mathit{ownerOf}$ una asignación inicial de sus qubits a nodos de un \texttt{ClusterGraph} conexo respecto a los pares de qubits que $C$ entrelaza, y $\mathcal{E}_{\text{dist}}(C)$ la ejecución distribuida resultante de:
+\begin{enumerate}
+  \item \texttt{OptimizeCircuit(C)},
+  \item \texttt{RouteCircuit} sobre la topología interna de cada nodo,
+  \item \texttt{ScheduleCircuit} sobre el \texttt{ClusterGraph}, insertando \texttt{Teleport} donde se requiera,
+  \item ejecución de cada puerta localmente vía \texttt{SimulatorBackend.Apply}.
+\end{enumerate}
+Sea $\mathcal{E}_{\text{local}}(C)$ la ejecución de $C$ sin particionar, en un solo nodo. Entonces, para el mismo estado inicial, $\mathcal{E}_{\text{dist}}(C)$ y $\mathcal{E}_{\text{local}}(C)$ producen el mismo estado final (hasta el re-etiquetado de qubits que $\mathit{ownerOf}$ y el ruteo inducen), y por tanto la misma distribución de probabilidades de medición (Definición~\ref{def:medicion-proyeccion}) para cualquier observable en la base computacional.
+\end{theorem}
+
+\section{Demostración}
+
+La prueba procede por inducción sobre el orden topológico de los nodos del \texttt{QIRCircuit} resultante de \texttt{OptimizeCircuit} — válido como orden de ejecución por construcción (\S\ref{sec:puertas-compuestas}).
+
+\textbf{Caso base.} Antes de ejecutar cualquier puerta, el estado de $\mathcal{E}_{\text{dist}}$ y el de $\mathcal{E}_{\text{local}}$ son idénticos: ambos parten del mismo estado inicial, y \texttt{OptimizeCircuit} (Proposición de equivalencia verificada en \texttt{core/optimizer\_test.go}: \texttt{TestOptimizeCircuitFusesNonCancellingGates} compara contra ejecución directa, no solo cuenta de nodos) no altera qué unitario global calcula $C$ — solo cuántas puertas usa para calcularlo.
+
+\textbf{Paso inductivo.} Supóngase que, tras procesar los primeros $k$ nodos, ambas ejecuciones coinciden (hasta el re-etiquetado $\sigma$ acumulado). Sea $n_{k+1}$ el siguiente nodo:
+
+\begin{itemize}
+  \item \emph{Si $n_{k+1}$ actúa sobre qubits ya co-localizados} (mismo nodo físico bajo $\sigma$): \texttt{RouteCircuit} aplica como máximo una secuencia de \textsc{SWAP}s dentro de ese nodo. Por el Teorema~\ref{thm:route-preserves-semantics}, el resultado es el de $C$ con $\sigma$ actualizado — coincide con $\mathcal{E}_{\text{local}}$, que no necesita \textsc{SWAP} alguno porque ya opera sobre un único espacio sin restricción de conectividad física entre "nodos" (no hay partición que respetar).
+  \item \emph{Si $n_{k+1}$ actúa sobre qubits en nodos distintos}: \texttt{ScheduleCircuit} inserta los \texttt{TeleportStep} necesarios (Teorema~\ref{thm:schedule-preserves-semantics}). Cada \texttt{Teleport} entrega el qubit migrado exacto —\texttt{core/teleport\_test.go} lo verifica para los 4 resultados de medición posibles de Alice, no un caso particular— de modo que, en el momento en que $n_{k+1}$ se ejecuta, el estado conjunto relevante es idéntico al que $\mathcal{E}_{\text{local}}$ tendría sin partición. La Proposición~\ref{prop:teleport-compose} garantiza que esto se mantiene aun si $n_{k+1}$ no es la primera puerta en requerir mover ese qubit (cadenas de migración componen sin degradación).
+\end{itemize}
+
+En ambos casos, tras procesar $n_{k+1}$ los dos estados vuelven a coincidir (hasta re-etiquetado). Por inducción, coinciden tras procesar todos los nodos — es decir, al final de la ejecución.
+
+\textbf{Conclusión.} Un estado final idéntico (hasta re-etiquetado, que no es observable: medir el qubit físico $j$ bajo $\sigma$ es medir el mismo qubit lógico que $\mathcal{E}_{\text{local}}$ mediría) implica, por la Definición~\ref{def:medicion-proyeccion}, probabilidades de Born idénticas para cualquier medición en la base computacional. $\blacksquare$
+
+\section{Alcance y Limitaciones}
+
+El Teorema~\ref{thm:correccion-distribuida} es una afirmación de corrección \emph{exacta} bajo los supuestos siguientes, que delimitan honestamente dónde termina lo probado y empieza el trabajo futuro de la hoja de ruta (Capítulo~\ref{ch:futuro}):
+
+\begin{itemize}
+  \item \textbf{Backends sin ruido.} La prueba usa \texttt{SimulatorBackend} (y, por extensión, \texttt{CUDASimBackend}, idéntico salvo dónde corre el álgebra lineal). Para \texttt{SuperconductorBackend}/\texttt{TrappedIonBackend} reales, con $T_1/T_2$ finitos y error de lectura no nulo (issues \#11, \#12, aún abiertos), el teorema se degrada de una igualdad exacta a una cota de fidelidad: $F(\mathcal{E}_{\text{dist}}, \mathcal{E}_{\text{local}}) \geq 1 - \epsilon(T_1, T_2, \text{shots})$. Formalizar $\epsilon$ es trabajo futuro explícitamente fuera del alcance de este teorema.
+  \item \textbf{Medición determinista vs.\ estocástica.} El teorema habla de \emph{distribución} de probabilidades, no de qué resultado particular ocurre — por lo que es indiferente a si la medición es el argmax determinista de \texttt{Measure()} o el muestreo estocástico de \texttt{Shots()} (issue \#10): ambos leen la misma distribución de Born del mismo estado final idéntico.
+  \item \textbf{Canal clásico confiable.} La demostración asume que \texttt{SendClassical}/\texttt{RecvClassical} entregan sus bits sin pérdida. La falla parcial de esa suposición es precisamente lo que la Sección~\ref{sec:teleportacion-infra} identifica como el modo de falla propio de la migración cuántica —sin reintento posible una vez medido el qubit origen— y que el teorema, por diseño, no intenta cubrir: es una propiedad del canal, no del modelo de cómputo.
+  \item \textbf{\texttt{ScheduleCircuit} no optimiza.} El teorema prueba corrección, no un número mínimo de teleportaciones — ese mínimo sigue siendo el problema NP-hard de graph embedding (\S\ref{sec:hilbert-distribuido}, issue \#19).
+\end{itemize}
 
 % ============================================================
 \chapter{Resultados}
