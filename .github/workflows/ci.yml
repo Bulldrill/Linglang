@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  test:
+    name: build, vet, format, test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+
+      - name: go build
+        run: go build ./...
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: gofmt check
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "The following files are not gofmt-formatted:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      # cuda_backend.go sits behind the "cuda" build tag precisely because
+      # it requires the NVIDIA cuQuantum toolkit (core/cuda_backend.go) —
+      # not available on a standard GitHub-hosted runner, so CI builds and
+      # tests only the default (non-cuda) target, matching local dev.
+      - name: go test
+        run: go test ./... -cover -race

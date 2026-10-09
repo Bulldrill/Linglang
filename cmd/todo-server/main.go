@@ -92,14 +92,14 @@ func (s *Server) vecToJSON(v *core.Vector) map[string]any {
 	sta := int(v.Values[2])
 	cat := int(v.Values[3])
 	return map[string]any{
-		"id":            int64(v.Values[0]),
-		"title":         title,
-		"priority":      pri,
-		"priority_name": priorityNames[pri],
-		"status":        sta,
-		"status_name":   statusNames[sta],
-		"category":      cat,
-		"category_name": categoryNames[cat],
+		"id":             int64(v.Values[0]),
+		"title":          title,
+		"priority":       pri,
+		"priority_name":  priorityNames[pri],
+		"status":         sta,
+		"status_name":    statusNames[sta],
+		"category":       cat,
+		"category_name":  categoryNames[cat],
 		"vector_linlang": v.Values,
 	}
 }
@@ -223,7 +223,9 @@ func (s *Server) stateHandler(txName, suffix string) http.HandlerFunc {
 
 // PUT /tasks/{id}/priority  {"priority": 3}
 func (s *Server) updatePriority(w http.ResponseWriter, r *http.Request) {
-	var body struct{ Priority int `json:"priority"` }
+	var body struct {
+		Priority int `json:"priority"`
+	}
 	if json.NewDecoder(r.Body).Decode(&body) != nil || body.Priority < 1 || body.Priority > 3 {
 		errJSON(w, 400, "priority: 1=baja, 2=media, 3=alta")
 		return
@@ -253,7 +255,9 @@ func (s *Server) updatePriority(w http.ResponseWriter, r *http.Request) {
 
 // PUT /tasks/{id}/category  {"category": 3}
 func (s *Server) updateCategory(w http.ResponseWriter, r *http.Request) {
-	var body struct{ Category int `json:"category"` }
+	var body struct {
+		Category int `json:"category"`
+	}
 	if json.NewDecoder(r.Body).Decode(&body) != nil || body.Category < 1 || body.Category > 3 {
 		errJSON(w, 400, "category: 1=trabajo, 2=personal, 3=urgente")
 		return
@@ -346,11 +350,11 @@ func (s *Server) stats(w http.ResponseWriter, r *http.Request) {
 	normSem := math.Sqrt(cPri*cPri + cSta*cSta + cCat*cCat)
 
 	writeJSON(w, 200, map[string]any{
-		"total":           n,
-		"pendientes":      pending,
-		"en_progreso":     inProgress,
-		"completadas":     done,
-		"pct_completado":  fmt.Sprintf("%.1f%%", float64(done)/fn*100),
+		"total":          n,
+		"pendientes":     pending,
+		"en_progreso":    inProgress,
+		"completadas":    done,
+		"pct_completado": fmt.Sprintf("%.1f%%", float64(done)/fn*100),
 		"centroide_linlang": map[string]any{
 			"prioridad_media": cPri,
 			"estado_medio":    cSta,
