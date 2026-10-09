@@ -146,6 +146,53 @@ for t in todas {
 	}
 }
 
+func TestUserDefinedFuncDeclarationAndCall(t *testing.T) {
+	rt := NewRuntime()
+	rt.Parse(`
+space Personas: id: Real, energia: Real
+
+func doblar: Personas -> Personas {
+    id = p.id
+    energia = p.energia * 2
+}
+
+let p1 = Personas[1, 0.8]
+let p2 = doblar(p1)
+`)
+	tx, ok := rt.Transforms["doblar"]
+	if !ok {
+		t.Fatal("expected 'doblar' to be registered")
+	}
+	if tx.Domain2 != nil {
+		t.Fatalf("expected a unary func to have a nil Domain2, got %v", tx.Domain2)
+	}
+	p2 := rt.Vectors["p2"]
+	if p2 == nil {
+		t.Fatal("expected p2 to be created")
+	}
+	if p2.Values[0] != 1 || p2.Values[1] != 1.6 {
+		t.Fatalf("doblar(p1) = %v, want [1 1.6]", p2.Values)
+	}
+}
+
+func TestUserDefinedFuncCallMissingArgReportsError(t *testing.T) {
+	rt := NewRuntime()
+	rt.Parse(`
+space Personas: id: Real, energia: Real
+func doblar: Personas -> Personas {
+    id = p.id
+    energia = p.energia * 2
+}
+let p2 = doblar(no_existe)
+`)
+	if _, ok := rt.Vectors["p2"]; ok {
+		t.Fatal("expected no binding when the argument vector does not exist")
+	}
+	if rt.LastError == nil || rt.LastError.Name != "NotFound" {
+		t.Fatalf("expected a catchable NotFound error, got %+v", rt.LastError)
+	}
+}
+
 func TestVectorLiteralTypeInferenceWhenUnambiguous(t *testing.T) {
 	rt := NewRuntime()
 	rt.Parse(`

@@ -244,6 +244,9 @@ func (rt *Runtime) ParseLine(line string) {
 	case strings.HasPrefix(trimmed, "transform "):
 		rt.parseTransformDecl(trimmed)
 
+	case strings.HasPrefix(trimmed, "func "):
+		rt.parseFuncDecl(trimmed)
+
 	case strings.HasPrefix(trimmed, "let "):
 		rt.parseLet(trimmed)
 
@@ -352,6 +355,54 @@ func (rt *Runtime) parseSpace(line string) {
 //	    dim = expr
 //	    ...
 //	}
+// ── func (user-defined unary function, issue #28) ───────────────────────────
+
+// Syntax:
+//
+//	func name: Domain -> Codomain {
+//	    dim = expr
+//	    ...
+//	}
+//
+// A user-defined function is a transform (#) with a single domain: it
+// reuses the exact same pendingTransform/finalizeTransform machinery —
+// finalizeTransform already leaves dom2Space nil when tx.dom2 == "", and
+// Expr.Eval (core/expressions.go FieldExpr) already returns 0 for any
+// m.dim access when m is nil, which is exactly what a 1-argument call
+// (see parseFuncCall's registered-transform fallback) passes as m. The
+// only thing genuinely new here is accepting "Domain -> Codomain" (no
+// " x Domain2") as valid syntax and calling the result with one argument
+// instead of two.
+func (rt *Runtime) parseFuncDecl(line string) {
+	line = strings.TrimPrefix(line, "func ")
+	line = strings.TrimSuffix(strings.TrimSpace(line), "{")
+	line = strings.TrimSpace(line)
+
+	parts := strings.SplitN(line, ":", 2)
+	name := strings.TrimSpace(parts[0])
+	if len(parts) < 2 {
+		fmt.Printf("[❌] func '%s': sintaxis: func <nombre>: <Dominio> -> <Codominio> {\n", name)
+		return
+	}
+	arrowParts := strings.SplitN(strings.TrimSpace(parts[1]), "->", 2)
+	if len(arrowParts) < 2 {
+		fmt.Printf("[❌] func '%s': falta '->' en la firma\n", name)
+		return
+	}
+	dom := strings.TrimSpace(arrowParts[0])
+	codomain := strings.TrimSpace(arrowParts[1])
+
+	rt.inTransform = true
+	rt.pendingTx = &pendingTransform{
+		name:     name,
+		dom1:     dom,
+		dom2:     "",
+		codomain: codomain,
+		mappings: map[string]core.Expr{},
+	}
+	fmt.Printf("[🔧] Definiendo función: %s: %s → %s\n", name, dom, codomain)
+}
+
 func (rt *Runtime) parseTransformDecl(line string) {
 	line = strings.TrimPrefix(line, "transform ")
 	line = strings.TrimSuffix(strings.TrimSpace(line), "{")
@@ -644,19 +695,32 @@ func (rt *Runtime) parseFuncCall(varName, rhs string) {
 			varName, strings.TrimSpace(args[0]), strings.TrimSpace(args[1]), result.Values)
 
 	default:
-		// Registered transform call
+		// Registered transform/func call — a func (issue #28) is a
+		// transform with no second domain, called with 1 argument instead
+		// of 2; Transform.Apply/Expr.Eval already treat a nil m as "this
+		// is a unary call" (see parseFuncDecl's doc comment).
 		tx, ok := rt.Transforms[fnName]
 		if !ok {
 			fmt.Printf("[❌] Función/transform no reconocido: '%s'\n", fnName)
 			return
 		}
 		v1 := rt.Vectors[strings.TrimSpace(args[0])]
-		v2 := rt.Vectors[strings.TrimSpace(args[1])]
+		if v1 == nil {
+			rt.fail("NotFound", "%s: vector '%s' no encontrado", fnName, strings.TrimSpace(args[0]))
+			return
+		}
+		var v2 *core.Vector
+		argsLabel := strings.TrimSpace(args[0])
+		if len(args) > 1 {
+			v2 = rt.Vectors[strings.TrimSpace(args[1])]
+			if v2 == nil {
+				rt.fail("NotFound", "%s: vector '%s' no encontrado", fnName, strings.TrimSpace(args[1]))
+				return
+			}
+			argsLabel += ", " + strings.TrimSpace(args[1])
+		}
 		rt.Vectors[varName] = tx.Apply(v1, v2)
-		fmt.Printf("[✔️] %s = %s(%s, %s)  →  %v\n",
-			varName, fnName,
-			strings.TrimSpace(args[0]), strings.TrimSpace(args[1]),
-			rt.Vectors[varName].Values)
+		fmt.Printf("[✔️] %s = %s(%s)  →  %v\n", varName, fnName, argsLabel, rt.Vectors[varName].Values)
 	}
 }
 
