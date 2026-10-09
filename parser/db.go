@@ -62,7 +62,7 @@ func (rt *Runtime) parsePersist(line string) {
 		fmt.Printf("[❌] persist: no hay store configurado (usa runtime.SetStore)\n")
 		return
 	}
-	if err := rt.Store.Upsert(v.Space, v.Values); err != nil {
+	if err := rt.Store.Upsert(v.Space, v.Values, v.Strings); err != nil {
 		fmt.Printf("[❌] persist %s: %v\n", varName, err)
 		return
 	}
@@ -264,6 +264,105 @@ func anyOf(fns []func([]float64) bool) func([]float64) bool {
 	}
 }
 
+// ── Vector-aware conditions: filter() can compare String dims (issue #24) ───
+//
+// query's where-clause (buildMultiConditionFilter above) is restricted to
+// []float64 because that is all store.Backend.Query's filter predicate
+// ever sees (issue #1 — a real DB backend only gets numeric values through
+// that interface). filter() (issue #25) is purely in-memory and holds the
+// full *Vector, so it can additionally compare String-typed dimensions by
+// equality — e.g. filter(tareas, titulo == "comprar pan").
+
+// buildVectorConditionFilter is buildMultiConditionFilter's *Vector-aware
+// counterpart: same and/or precedence, but clauses on a String-typed
+// dimension compare against a quoted literal instead of a number.
+func buildVectorConditionFilter(space *core.Space, expr string) (filter func(*core.Vector) bool, label string, errMsg string) {
+	var orFns []func(*core.Vector) bool
+	var orLabels []string
+
+	for _, group := range strings.Split(expr, " or ") {
+		var andFns []func(*core.Vector) bool
+		var andLabels []string
+
+		for _, clause := range strings.Split(group, " and ") {
+			fn, clauseLabel, err := singleVectorCondition(space, strings.TrimSpace(clause))
+			if err != "" {
+				return nil, "", err
+			}
+			andFns = append(andFns, fn)
+			andLabels = append(andLabels, clauseLabel)
+		}
+
+		orFns = append(orFns, func(v *core.Vector) bool {
+			for _, f := range andFns {
+				if !f(v) {
+					return false
+				}
+			}
+			return true
+		})
+		orLabels = append(orLabels, strings.Join(andLabels, " and "))
+	}
+
+	return func(v *core.Vector) bool {
+		for _, f := range orFns {
+			if f(v) {
+				return true
+			}
+		}
+		return false
+	}, strings.Join(orLabels, " or "), ""
+}
+
+// singleVectorCondition parses one "dim OP value" clause against a full
+// *Vector. Real dimensions compare numerically (any of >,<,>=,<=,==,!=);
+// String dimensions only support ==/!= against a "quoted" literal.
+func singleVectorCondition(space *core.Space, clause string) (filter func(*core.Vector) bool, label string, errMsg string) {
+	op, before, after := extractOperator(clause)
+	if op == "" {
+		return nil, "", fmt.Sprintf("operador no reconocido en '%s'", clause)
+	}
+	dimName := strings.TrimSpace(before)
+	rawVal := strings.TrimSpace(after)
+
+	dimIdx := -1
+	for i, d := range space.Dimensions {
+		if d == dimName {
+			dimIdx = i
+			break
+		}
+	}
+	if dimIdx < 0 {
+		return nil, "", fmt.Sprintf("dimensión '%s' no existe en espacio '%s'", dimName, space.Name)
+	}
+
+	if space.DimType(dimName) == core.String {
+		if op != "==" && op != "!=" {
+			return nil, "", fmt.Sprintf("operador '%s' no soportado para la dimensión String '%s' (solo == y !=)", op, dimName)
+		}
+		if len(rawVal) < 2 || rawVal[0] != '"' || rawVal[len(rawVal)-1] != '"' {
+			return nil, "", fmt.Sprintf(`se esperaba un literal de texto entre comillas para '%s', recibido '%s'`, dimName, rawVal)
+		}
+		literal := rawVal[1 : len(rawVal)-1]
+		fn := func(v *core.Vector) bool {
+			s, _ := v.GetString(dimName)
+			if op == "==" {
+				return s == literal
+			}
+			return s != literal
+		}
+		return fn, fmt.Sprintf("%s %s %q", dimName, op, literal), ""
+	}
+
+	val, err := strconv.ParseFloat(rawVal, 64)
+	if err != nil {
+		return nil, "", fmt.Sprintf("valor no numérico '%s'", rawVal)
+	}
+	cond := makeCondition(op, val)
+	fn := func(v *core.Vector) bool { return cond(v.Values[dimIdx]) }
+	return fn, fmt.Sprintf("%s %s %.4g", dimName, op, val), ""
+}
+
 // ── filter / map over in-memory collections (issue #25) ─────────────────────
 
 // Syntax: let x = filter(collection, dim OP value [and/or ...])
@@ -288,7 +387,7 @@ func (rt *Runtime) applyFilter(varName string, args []string) bool {
 	}
 
 	condExpr := strings.TrimSpace(strings.Join(args[1:], ","))
-	filterFn, label, errMsg := buildMultiConditionFilter(coll[0].Space, condExpr)
+	filterFn, label, errMsg := buildVectorConditionFilter(coll[0].Space, condExpr)
 	if errMsg != "" {
 		fmt.Printf("[❌] filter: %s\n", errMsg)
 		return true
@@ -296,7 +395,7 @@ func (rt *Runtime) applyFilter(varName string, args []string) bool {
 
 	result := make([]*core.Vector, 0, len(coll))
 	for _, v := range coll {
-		if filterFn(v.Values) {
+		if filterFn(v) {
 			result = append(result, v)
 		}
 	}
@@ -371,9 +470,14 @@ func (rt *Runtime) printCollection(name string) bool {
 	fmt.Printf("[📌] %s  (%d vectores en '%s'):\n", name, len(coll), coll[0].Space.Name)
 	for i, v := range coll {
 		dims := v.Space.Dimensions
+		display := v.Display()
 		fmt.Printf("      [%d]  ", i)
 		for j, d := range dims {
-			fmt.Printf("%s=%.4g", d, v.Values[j])
+			if s, ok := display[j].(string); ok {
+				fmt.Printf("%s=%q", d, s)
+			} else {
+				fmt.Printf("%s=%.4g", d, display[j])
+			}
 			if j < len(dims)-1 {
 				fmt.Printf("  ")
 			}

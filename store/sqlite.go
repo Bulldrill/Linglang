@@ -14,6 +14,8 @@ import (
 // La primera dimensión del espacio se convierte en PRIMARY KEY.
 // Las columnas se crean automáticamente la primera vez que se persiste
 // un vector en ese espacio — el schema .lin define el schema SQL.
+// Las dimensiones String (issue #24) se mapean a columnas TEXT; el resto,
+// a REAL.
 //
 // DSN: sqlite://path/to/file.db
 // Ejemplo: sqlite://linlang.db  (relativo al directorio de trabajo)
@@ -37,19 +39,33 @@ func OpenSQLite(path string) (*SQLiteStore, error) {
 	return &SQLiteStore{db: db, tables: make(map[string]bool)}, nil
 }
 
+// sqlColumnType returns the SQLite column type for a dimension: TEXT for
+// String-typed dimensions (issue #24), REAL for everything else.
+func sqlColumnType(space *core.Space, dim string) string {
+	if space.DimType(dim) == core.String {
+		return "TEXT"
+	}
+	return "REAL"
+}
+
 // ensureTable crea la tabla para el espacio si no existe todavía.
-// Columnas: primera dimensión = REAL PRIMARY KEY, resto = REAL NOT NULL DEFAULT 0.
+// Columna 0 = PRIMARY KEY; el resto, NOT NULL DEFAULT acorde a su tipo.
 func (s *SQLiteStore) ensureTable(space *core.Space) error {
 	if s.tables[space.Name] {
 		return nil
 	}
 	cols := make([]string, len(space.Dimensions))
 	for i, d := range space.Dimensions {
+		colType := sqlColumnType(space, d)
 		if i == 0 {
-			cols[i] = fmt.Sprintf(`"%s" REAL PRIMARY KEY`, d)
-		} else {
-			cols[i] = fmt.Sprintf(`"%s" REAL NOT NULL DEFAULT 0`, d)
+			cols[i] = fmt.Sprintf(`"%s" %s PRIMARY KEY`, d, colType)
+			continue
 		}
+		defaultVal := "0"
+		if colType == "TEXT" {
+			defaultVal = "''"
+		}
+		cols[i] = fmt.Sprintf(`"%s" %s NOT NULL DEFAULT %s`, d, colType, defaultVal)
 	}
 	q := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS "%s" (%s)`,
 		space.Name, strings.Join(cols, ", "))
@@ -60,7 +76,7 @@ func (s *SQLiteStore) ensureTable(space *core.Space) error {
 	return nil
 }
 
-func (s *SQLiteStore) Upsert(space *core.Space, values []float64) error {
+func (s *SQLiteStore) Upsert(space *core.Space, values []float64, strs map[string]string) error {
 	if err := s.ensureTable(space); err != nil {
 		return err
 	}
@@ -69,11 +85,15 @@ func (s *SQLiteStore) Upsert(space *core.Space, values []float64) error {
 	//            ON CONFLICT(d0) DO UPDATE SET d1=excluded.d1, ...
 	quotedCols := make([]string, len(space.Dimensions))
 	placeholders := make([]string, len(space.Dimensions))
-	args := make([]any, len(values))
+	args := make([]any, len(space.Dimensions))
 	for i, d := range space.Dimensions {
 		quotedCols[i] = fmt.Sprintf(`"%s"`, d)
 		placeholders[i] = "?"
-		args[i] = values[i]
+		if space.DimType(d) == core.String {
+			args[i] = strs[d]
+		} else {
+			args[i] = values[i]
+		}
 	}
 
 	var updateSets []string
@@ -110,22 +130,39 @@ func (s *SQLiteStore) Query(space *core.Space, filter func([]float64) bool) ([]*
 	}
 	defer rows.Close()
 
-	scanDst := make([]any, len(space.Dimensions))
-	rawVals := make([]float64, len(space.Dimensions))
-	for i := range scanDst {
-		scanDst[i] = &rawVals[i]
+	isString := make([]bool, len(space.Dimensions))
+	for i, d := range space.Dimensions {
+		isString[i] = space.DimType(d) == core.String
 	}
 
 	var result []*core.Vector
 	for rows.Next() {
+		scanDst := make([]any, len(space.Dimensions))
+		rawVals := make([]float64, len(space.Dimensions))
+		rawStrs := make([]string, len(space.Dimensions))
+		for i := range scanDst {
+			if isString[i] {
+				scanDst[i] = &rawStrs[i]
+			} else {
+				scanDst[i] = &rawVals[i]
+			}
+		}
 		if err := rows.Scan(scanDst...); err != nil {
 			return nil, fmt.Errorf("sqlite: scan: %w", err)
 		}
+
 		vals := make([]float64, len(rawVals))
 		copy(vals, rawVals)
-		if filter == nil || filter(vals) {
-			result = append(result, core.NewVector(space, vals))
+		if filter != nil && !filter(vals) {
+			continue
 		}
+		v := core.NewVector(space, vals)
+		for i, d := range space.Dimensions {
+			if isString[i] {
+				v.SetString(d, rawStrs[i])
+			}
+		}
+		result = append(result, v)
 	}
 	return result, rows.Err()
 }

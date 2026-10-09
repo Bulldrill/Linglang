@@ -31,7 +31,9 @@ import (
 type Backend interface {
 	// Upsert inserta o actualiza un vector.
 	// La primera dimensión del espacio se trata como clave primaria.
-	Upsert(space *core.Space, values []float64) error
+	// strs lleva los valores de las dimensiones String (issue #24); una
+	// dimensión Real no tiene entrada en strs.
+	Upsert(space *core.Space, values []float64, strs map[string]string) error
 
 	// Query devuelve todos los vectores del espacio que satisfacen filter.
 	// Si filter es nil se devuelven todos.

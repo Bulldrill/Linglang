@@ -52,14 +52,19 @@ func indexKey(spaceName string) string {
 	return fmt.Sprintf("linlang:%s:_ids", spaceName)
 }
 
-func (r *RedisStore) Upsert(space *core.Space, values []float64) error {
+func (r *RedisStore) Upsert(space *core.Space, values []float64, strs map[string]string) error {
 	id := values[0]
 	key := vectorKey(space.Name, id)
 
-	// Construir el hash: dim → valor como string
+	// Construir el hash: dim → valor como string (Real: formateado desde
+	// float64; String: el literal tal cual, issue #24).
 	fields := make([]any, 0, len(space.Dimensions)*2)
 	for i, dim := range space.Dimensions {
-		fields = append(fields, dim, strconv.FormatFloat(values[i], 'f', -1, 64))
+		if space.DimType(dim) == core.String {
+			fields = append(fields, dim, strs[dim])
+		} else {
+			fields = append(fields, dim, strconv.FormatFloat(values[i], 'f', -1, 64))
+		}
 	}
 
 	pipe := r.client.Pipeline()
@@ -86,6 +91,7 @@ func (r *RedisStore) Query(space *core.Space, filter func([]float64) bool) ([]*c
 
 		// Leer los campos del hash en orden de dimensiones
 		vals := make([]float64, len(space.Dimensions))
+		strVals := make(map[string]string, len(space.Dimensions))
 		for i, dim := range space.Dimensions {
 			raw, err := r.client.HGet(r.ctx, key, dim).Result()
 			if err != nil {
@@ -95,12 +101,20 @@ func (r *RedisStore) Query(space *core.Space, filter func([]float64) bool) ([]*c
 				}
 				return nil, fmt.Errorf("redis: HGET %s %s: %w", key, dim, err)
 			}
+			if space.DimType(dim) == core.String {
+				strVals[dim] = raw
+				continue
+			}
 			f, _ := strconv.ParseFloat(raw, 64)
 			vals[i] = f
 		}
 
 		if filter == nil || filter(vals) {
-			result = append(result, core.NewVector(space, vals))
+			v := core.NewVector(space, vals)
+			for dim, s := range strVals {
+				v.SetString(dim, s)
+			}
+			result = append(result, v)
 		}
 	}
 	return result, nil

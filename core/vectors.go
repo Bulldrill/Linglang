@@ -1,4 +1,3 @@
-
 package core
 
 import (
@@ -10,48 +9,83 @@ import (
 var vectorIDCounter int64 = 0
 
 func nextID() int64 {
-    vectorIDCounter++
-    return vectorIDCounter
+	vectorIDCounter++
+	return vectorIDCounter
 }
 
 type Vector struct {
-    ID int64
-    Space *Space
-    Values []float64
+	ID      int64
+	Space   *Space
+	Values  []float64
+	Strings map[string]string // dimension name -> value, for String-typed dims only (issue #24)
 }
 
 func NewVector(space *Space, values []float64) *Vector {
-    if len(values) != len(space.Dimensions) {
-        panic("dimensiones incorrectas")
-    }
-    return &Vector{
-        ID: nextID(),
-        Space: space,
-        Values: values,
-    }
+	if len(values) != len(space.Dimensions) {
+		panic("dimensiones incorrectas")
+	}
+	return &Vector{
+		ID:     nextID(),
+		Space:  space,
+		Values: values,
+	}
 }
 
 func (v *Vector) String() string {
-    return fmt.Sprintf("%s%v", v.Space.Name, v.Values)
+	return fmt.Sprintf("%s%v", v.Space.Name, v.Display())
+}
+
+// SetString assigns a String-typed dimension's value.
+func (v *Vector) SetString(dim, value string) {
+	if v.Strings == nil {
+		v.Strings = map[string]string{}
+	}
+	v.Strings[dim] = value
+}
+
+// GetString returns a String-typed dimension's value.
+func (v *Vector) GetString(dim string) (string, bool) {
+	if v.Strings == nil {
+		return "", false
+	}
+	s, ok := v.Strings[dim]
+	return s, ok
+}
+
+// Display returns v's per-dimension values for human-readable output:
+// a string for String-typed dimensions, a float64 for everything else.
+// Values[i] is 0 (unused) at any String-typed dimension's slot.
+func (v *Vector) Display() []any {
+	out := make([]any, len(v.Values))
+	for i, dim := range v.Space.Dimensions {
+		if v.Space.DimType(dim) == String {
+			if s, ok := v.GetString(dim); ok {
+				out[i] = s
+				continue
+			}
+		}
+		out[i] = v.Values[i]
+	}
+	return out
 }
 
 func (v *Vector) Add(o *Vector) (*Vector, error) {
-    if v.Space.Name != o.Space.Name {
-        return nil, errors.New("espacios incompatibles")
-    }
-    res := make([]float64, len(v.Values))
-    for i := range v.Values {
-        res[i] = v.Values[i] + o.Values[i]
-    }
-    return NewVector(v.Space, res), nil
+	if v.Space.Name != o.Space.Name {
+		return nil, errors.New("espacios incompatibles")
+	}
+	res := make([]float64, len(v.Values))
+	for i := range v.Values {
+		res[i] = v.Values[i] + o.Values[i]
+	}
+	return NewVector(v.Space, res), nil
 }
 
 func (v *Vector) Dot(o *Vector) float64 {
-    sum := 0.0
-    for i := range v.Values {
-        sum += v.Values[i] * o.Values[i]
-    }
-    return sum
+	sum := 0.0
+	for i := range v.Values {
+		sum += v.Values[i] * o.Values[i]
+	}
+	return sum
 }
 
 func (v *Vector) Get(dim string) float64 {

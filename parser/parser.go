@@ -199,19 +199,29 @@ func (rt *Runtime) Parse(code string) {
 // ── space ─────────────────────────────────────────────────────────────────────
 
 // Syntax: space Name: dim1: Type, dim2: Type, ...
+// Type is "Real" (default if omitted) or "String" (issue #24) — a String
+// dimension is carried as metadata (e.g. a task's title) and excluded from
+// vector arithmetic (Add, Dot, Scale, Norm, Project).
 func (rt *Runtime) parseSpace(line string) {
 	line = strings.TrimPrefix(line, "space ")
 	parts := strings.SplitN(line, ":", 2)
 	name := strings.TrimSpace(parts[0])
 	dims := []string{}
+	types := []core.DimType{}
 	if len(parts) > 1 {
 		for _, d := range strings.Split(parts[1], ",") {
-			dimName := strings.Split(strings.TrimSpace(d), ":")[0]
-			dims = append(dims, strings.TrimSpace(dimName))
+			fields := strings.SplitN(strings.TrimSpace(d), ":", 2)
+			dimName := strings.TrimSpace(fields[0])
+			dimType := core.Real
+			if len(fields) > 1 && strings.TrimSpace(fields[1]) == "String" {
+				dimType = core.String
+			}
+			dims = append(dims, dimName)
+			types = append(types, dimType)
 		}
 	}
-	rt.Spaces[name] = core.NewSpace(name, dims)
-	fmt.Printf("[✔️] Espacio creado: %s  dims=%v\n", name, dims)
+	rt.Spaces[name] = core.NewTypedSpace(name, dims, types)
+	fmt.Printf("[✔️] Espacio creado: %s  dims=%v  types=%v\n", name, dims, types)
 }
 
 // ── transform declaration ─────────────────────────────────────────────────────
@@ -323,6 +333,8 @@ func (rt *Runtime) parseLet(line string) {
 }
 
 // Vector literal: SpaceName[v1, v2, ...]
+// A token quoted in "double quotes" is a String-typed dimension's value
+// (issue #24); everything else is parsed as Real.
 func (rt *Runtime) parseVectorLiteral(varName, rhs string) {
 	openIdx := strings.Index(rhs, "[")
 	closeIdx := strings.Index(rhs, "]")
@@ -334,13 +346,28 @@ func (rt *Runtime) parseVectorLiteral(varName, rhs string) {
 		fmt.Printf("[❌] Espacio no encontrado: %s\n", spName)
 		return
 	}
-	nums := []float64{}
-	for _, v := range strings.Split(valStr, ",") {
-		f, _ := strconv.ParseFloat(strings.TrimSpace(v), 64)
-		nums = append(nums, f)
+
+	tokens := splitRespectingQuotes(valStr)
+	nums := make([]float64, len(tokens))
+	strVals := map[string]string{}
+	for i, raw := range tokens {
+		tok := strings.TrimSpace(raw)
+		if len(tok) >= 2 && tok[0] == '"' && tok[len(tok)-1] == '"' {
+			if i < len(sp.Dimensions) {
+				strVals[sp.Dimensions[i]] = tok[1 : len(tok)-1]
+			}
+			continue
+		}
+		f, _ := strconv.ParseFloat(tok, 64)
+		nums[i] = f
 	}
-	rt.Vectors[varName] = core.NewVector(sp, nums)
-	fmt.Printf("[✔️] Vector %s creado en espacio %s  %v\n", varName, spName, nums)
+
+	vec := core.NewVector(sp, nums)
+	for dim, val := range strVals {
+		vec.SetString(dim, val)
+	}
+	rt.Vectors[varName] = vec
+	fmt.Printf("[✔️] Vector %s creado en espacio %s  %v\n", varName, spName, vec.Display())
 }
 
 // Function call: fn(arg1, arg2, ...)
@@ -649,7 +676,7 @@ func (rt *Runtime) parsePrint(line string) {
 		return
 	}
 	if v, ok := rt.Vectors[name]; ok {
-		fmt.Printf("[📌] %s = %v  (espacio: %s)\n", name, v.Values, v.Space.Name)
+		fmt.Printf("[📌] %s = %v  (espacio: %s)\n", name, v.Display(), v.Space.Name)
 		return
 	}
 	if s, ok := rt.Scalars[name]; ok {
@@ -660,6 +687,28 @@ func (rt *Runtime) parsePrint(line string) {
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
+
+// splitRespectingQuotes splits s on commas that are not inside a
+// "double-quoted" string literal (issue #24: a String dimension's value
+// may itself contain a comma, e.g. "comprar pan, leche").
+func splitRespectingQuotes(s string) []string {
+	var parts []string
+	inQuotes := false
+	start := 0
+	for i, c := range s {
+		switch c {
+		case '"':
+			inQuotes = !inQuotes
+		case ',':
+			if !inQuotes {
+				parts = append(parts, s[start:i])
+				start = i + 1
+			}
+		}
+	}
+	parts = append(parts, s[start:])
+	return parts
+}
 
 // splitArgs splits a comma-separated argument string respecting nested parentheses.
 func splitArgs(s string) []string {
