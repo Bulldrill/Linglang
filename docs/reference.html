@@ -1,0 +1,1425 @@
+<meta charset="UTF-8">
+<title>LinLang Reference</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;0,6..72,700;1,6..72,500&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* ============================================================
+   TOKENS
+   ============================================================ */
+:root{
+  --bg: #F5F6F8;
+  --surface: #FFFFFF;
+  --surface-sunken: #ECEDF2;
+  --border: #DCDEE4;
+  --border-strong: #C5C8D2;
+  --ink: #1A1D24;
+  --ink-soft: #565B68;
+  --ink-faint: #868CA0;
+  --accent: #5B4FE8;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #EEECFD;
+  --warm: #A8671E;
+  --warm-soft: #F7ECDD;
+  --code-bg: #F0EFF6;
+  --code-border: #DDDCE9;
+  --shadow: 0 1px 2px rgba(20,16,50,0.04), 0 8px 24px -12px rgba(20,16,50,0.12);
+  --radius-s: 6px;
+  --radius-m: 10px;
+  --radius-l: 16px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg: #12151B;
+    --surface: #181C24;
+    --surface-sunken: #0E1116;
+    --border: #262B36;
+    --border-strong: #353C4A;
+    --ink: #E8E9EE;
+    --ink-soft: #AAB0C0;
+    --ink-faint: #717A8C;
+    --accent: #9389FF;
+    --accent-ink: #14121F;
+    --accent-soft: #241F3D;
+    --warm: #E0A760;
+    --warm-soft: #2E2518;
+    --code-bg: #1C212B;
+    --code-border: #2B3140;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 32px -16px rgba(0,0,0,0.6);
+  }
+}
+:root[data-theme="dark"]{
+  --bg: #12151B;
+  --surface: #181C24;
+  --surface-sunken: #0E1116;
+  --border: #262B36;
+  --border-strong: #353C4A;
+  --ink: #E8E9EE;
+  --ink-soft: #AAB0C0;
+  --ink-faint: #717A8C;
+  --accent: #9389FF;
+  --accent-ink: #14121F;
+  --accent-soft: #241F3D;
+  --warm: #E0A760;
+  --warm-soft: #2E2518;
+  --code-bg: #1C212B;
+  --code-border: #2B3140;
+  --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 32px -16px rgba(0,0,0,0.6);
+}
+
+/* ============================================================
+   RESET-ish / BASE
+   ============================================================ */
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:"Hanken Grotesk", system-ui, sans-serif;
+  font-size:16px;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+@media (prefers-reduced-motion: reduce){
+  html{scroll-behavior:auto;}
+  *{animation-duration:0.001ms !important; transition-duration:0.001ms !important;}
+}
+h1,h2,h3,h4{
+  font-family:"Newsreader", Georgia, serif;
+  font-weight:600;
+  line-height:1.22;
+  text-wrap:balance;
+  margin:0 0 0.5em 0;
+  color:var(--ink);
+}
+p{margin:0 0 1em 0; max-width:68ch;}
+a{color:var(--accent); text-decoration:none;}
+a:hover{text-decoration:underline;}
+code, pre, kbd{
+  font-family:"IBM Plex Mono", ui-monospace, monospace;
+}
+code{
+  background:var(--code-bg);
+  border:1px solid var(--code-border);
+  border-radius:4px;
+  padding:0.12em 0.4em;
+  font-size:0.86em;
+  color:var(--ink);
+}
+::selection{background:var(--accent-soft); color:var(--ink);}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:3px;}
+
+/* ============================================================
+   LAYOUT SHELL
+   ============================================================ */
+.shell{
+  display:grid;
+  grid-template-columns: 280px minmax(0,1fr);
+  min-height:100vh;
+}
+.sidebar{
+  position:sticky; top:0; height:100vh;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  display:flex; flex-direction:column;
+  overflow:hidden;
+}
+.sidebar__brand{
+  padding:22px 20px 14px 20px;
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+.sidebar__brand-name{
+  font-family:"Newsreader", serif;
+  font-weight:600;
+  font-size:1.5rem;
+  letter-spacing:-0.01em;
+  color:var(--ink);
+  display:flex; align-items:baseline; gap:8px;
+}
+.sidebar__brand-name .glyph{
+  color:var(--accent);
+  font-family:"IBM Plex Mono", monospace;
+  font-weight:500;
+  font-size:1rem;
+}
+.sidebar__brand-tag{
+  font-size:0.78rem;
+  color:var(--ink-faint);
+  margin-top:3px;
+  letter-spacing:0.01em;
+}
+.sidebar__search{
+  padding:12px 14px;
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+.sidebar__search input{
+  width:100%;
+  background:var(--surface-sunken);
+  border:1px solid var(--border);
+  border-radius:var(--radius-s);
+  padding:8px 10px 8px 30px;
+  font-family:inherit;
+  font-size:0.86rem;
+  color:var(--ink);
+}
+.sidebar__search input::placeholder{color:var(--ink-faint);}
+.sidebar__search-wrap{position:relative;}
+.sidebar__search-wrap svg{
+  position:absolute; left:9px; top:50%; transform:translateY(-50%);
+  width:14px; height:14px; color:var(--ink-faint); pointer-events:none;
+}
+.sidebar__nav{
+  overflow-y:auto;
+  padding:10px 10px 32px 10px;
+  flex:1;
+}
+.navgroup{margin-bottom:4px;}
+.navgroup__title{
+  display:flex; align-items:center; gap:7px;
+  font-size:0.72rem;
+  text-transform:uppercase;
+  letter-spacing:0.08em;
+  color:var(--ink-faint);
+  font-weight:600;
+  padding:14px 10px 6px 10px;
+}
+.navgroup__dot{
+  width:7px; height:7px; border-radius:50%; flex-shrink:0;
+}
+.navgroup__dot.is-classical{background:var(--warm);}
+.navgroup__dot.is-quantum{background:var(--accent);}
+.navgroup__dot.is-infra{background:var(--ink-faint);}
+.navlink{
+  display:block;
+  padding:6px 10px 6px 24px;
+  border-radius:var(--radius-s);
+  font-size:0.87rem;
+  color:var(--ink-soft);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.navlink:hover{background:var(--surface-sunken); color:var(--ink); text-decoration:none;}
+.navlink.is-active{background:var(--accent-soft); color:var(--accent); font-weight:600;}
+.navlink.is-hidden{display:none;}
+.navgroup.is-hidden{display:none;}
+
+.main{
+  min-width:0;
+  padding:0 0 120px 0;
+}
+.topbar{
+  position:sticky; top:0; z-index:5;
+  display:none;
+  align-items:center; gap:12px;
+  padding:12px 20px;
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+}
+.topbar__burger{
+  width:34px; height:34px; border-radius:var(--radius-s);
+  border:1px solid var(--border); background:var(--surface-sunken);
+  display:flex; align-items:center; justify-content:center;
+  color:var(--ink); cursor:pointer;
+}
+.content{
+  max-width:880px;
+  margin:0 auto;
+  padding:48px 48px 0 48px;
+}
+.content--wide{max-width:1040px;}
+
+/* ============================================================
+   CONTENT TYPOGRAPHY
+   ============================================================ */
+.eyebrow{
+  display:inline-flex; align-items:center; gap:7px;
+  font-size:0.76rem; text-transform:uppercase; letter-spacing:0.09em;
+  color:var(--ink-faint); font-weight:600; margin-bottom:10px;
+}
+.eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);}
+h1.page-title{font-size:2.4rem; margin-bottom:0.3em;}
+.lede{font-size:1.1rem; color:var(--ink-soft); max-width:62ch;}
+section.doc-section{
+  padding-top:56px;
+  border-top:1px solid var(--border);
+  margin-top:56px;
+}
+section.doc-section:first-of-type{border-top:none; margin-top:0; padding-top:0;}
+h2{font-size:1.65rem; margin-top:0;}
+h3{font-size:1.25rem; margin-top:1.8em;}
+h4{font-size:1.02rem; margin-top:1.4em; font-family:"Hanken Grotesk",sans-serif; font-weight:700; text-transform:uppercase; letter-spacing:0.03em; color:var(--ink-soft);}
+ul,ol{margin:0 0 1.1em 0; padding-left:1.3em; max-width:66ch;}
+li{margin-bottom:0.35em;}
+strong{font-weight:650;}
+.subtle{color:var(--ink-soft);}
+.faint{color:var(--ink-faint); font-size:0.9rem;}
+
+/* ---- callouts ---- */
+.callout{
+  display:flex; gap:12px;
+  border:1px solid var(--border);
+  border-left:3px solid var(--accent);
+  background:var(--surface);
+  border-radius:var(--radius-m);
+  padding:14px 18px;
+  margin:1.4em 0;
+  max-width:66ch;
+  box-shadow:var(--shadow);
+}
+.callout.is-warm{border-left-color:var(--warm);}
+.callout__icon{flex-shrink:0; width:20px; height:20px; margin-top:2px; color:var(--accent);}
+.callout.is-warm .callout__icon{color:var(--warm);}
+.callout p{margin:0; font-size:0.93rem;}
+.callout p + p{margin-top:0.5em;}
+.callout strong{display:block; font-size:0.78rem; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:4px; color:var(--ink);}
+
+/* ---- code ---- */
+.code-block{
+  position:relative;
+  background:var(--code-bg);
+  border:1px solid var(--code-border);
+  border-radius:var(--radius-m);
+  margin:1.2em 0;
+  overflow:hidden;
+}
+.code-block__label{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:7px 14px;
+  border-bottom:1px solid var(--code-border);
+  font-size:0.72rem;
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+  color:var(--ink-faint);
+  font-family:"IBM Plex Mono",monospace;
+}
+.code-block pre{
+  margin:0; padding:14px 18px;
+  overflow-x:auto;
+  font-size:0.86rem;
+  line-height:1.65;
+  tab-size:4;
+}
+.code-block code{
+  background:none; border:none; padding:0; font-size:inherit; color:var(--ink);
+}
+.tok-kw{color:var(--accent); font-weight:600;}
+.tok-str{color:var(--warm);}
+.tok-com{color:var(--ink-faint); font-style:italic;}
+.tok-num{color:#2E8B74;}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .tok-num{color:#6FD1B4;}}
+:root[data-theme="dark"] .tok-num{color:#6FD1B4;}
+
+.out-block{
+  background:var(--surface-sunken);
+  border:1px dashed var(--border-strong);
+  border-radius:var(--radius-m);
+  padding:12px 16px;
+  margin:1em 0 1.4em 0;
+  font-family:"IBM Plex Mono",monospace;
+  font-size:0.82rem;
+  color:var(--ink-soft);
+  white-space:pre-wrap;
+  overflow-x:auto;
+}
+.out-block__label{display:block; font-size:0.68rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--ink-faint); margin-bottom:6px; font-family:"Hanken Grotesk",sans-serif; font-weight:700;}
+
+/* ---- tables ---- */
+.table-wrap{overflow-x:auto; margin:1.3em 0;}
+table{border-collapse:collapse; width:100%; font-size:0.88rem;}
+table.ref-table{min-width:640px;}
+th,td{
+  text-align:left; padding:9px 14px;
+  border-bottom:1px solid var(--border);
+  vertical-align:top;
+}
+th{
+  font-family:"Hanken Grotesk",sans-serif;
+  font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em;
+  color:var(--ink-faint); font-weight:700;
+  border-bottom:1px solid var(--border-strong);
+}
+td code{white-space:nowrap;}
+tbody tr:hover{background:var(--surface-sunken);}
+td.num{font-variant-numeric:tabular-nums;}
+
+/* ---- definition grid ---- */
+.deflist{display:grid; grid-template-columns: max-content 1fr; gap:6px 20px; margin:1.2em 0; max-width:68ch;}
+.deflist dt{font-family:"IBM Plex Mono",monospace; font-size:0.85rem; color:var(--accent); font-weight:600; white-space:nowrap;}
+.deflist dd{margin:0; color:var(--ink-soft); font-size:0.92rem;}
+
+/* ---- badges / pills ---- */
+.pill{
+  display:inline-flex; align-items:center; gap:5px;
+  font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;
+  padding:2px 9px; border-radius:99px;
+  background:var(--accent-soft); color:var(--accent);
+  font-family:"Hanken Grotesk",sans-serif;
+}
+.pill.is-warm{background:var(--warm-soft); color:var(--warm);}
+.pill.is-neutral{background:var(--surface-sunken); color:var(--ink-soft); border:1px solid var(--border);}
+
+/* ---- card grid (landing) ---- */
+.card-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:14px; margin:1.6em 0 2.2em 0;}
+.card{
+  border:1px solid var(--border);
+  background:var(--surface);
+  border-radius:var(--radius-m);
+  padding:18px 18px 16px 18px;
+  box-shadow:var(--shadow);
+  transition:transform 0.15s ease, border-color 0.15s ease;
+}
+.card:hover{transform:translateY(-2px); border-color:var(--border-strong);}
+.card__title{font-family:"Newsreader",serif; font-size:1.08rem; font-weight:600; margin-bottom:5px; display:flex; align-items:center; gap:8px;}
+.card__body{font-size:0.86rem; color:var(--ink-soft); margin:0;}
+.card a{display:block;}
+.card a:hover{text-decoration:none;}
+
+/* ---- function signature block ---- */
+.sig{
+  font-family:"IBM Plex Mono",monospace;
+  font-size:0.95rem;
+  background:var(--surface-sunken);
+  border:1px solid var(--border);
+  border-radius:var(--radius-s);
+  padding:10px 16px;
+  margin:0.8em 0 1.3em 0;
+  display:inline-block;
+  color:var(--ink);
+}
+.sig .p{color:var(--ink-faint);}
+.sig .t{color:var(--accent);}
+
+/* ---- keycap ---- */
+.kbd{
+  font-family:"IBM Plex Mono",monospace;
+  font-size:0.78rem;
+  background:var(--surface-sunken);
+  border:1px solid var(--border-strong);
+  border-bottom-width:2px;
+  border-radius:4px;
+  padding:1px 6px;
+}
+
+hr.sep{border:none; border-top:1px solid var(--border); margin:2.6em 0;}
+
+.toc-footer{
+  display:flex; justify-content:space-between; gap:20px;
+  margin-top:3.2em; padding-top:1.6em; border-top:1px solid var(--border);
+  font-size:0.86rem;
+}
+.toc-footer a{color:var(--ink-soft); display:flex; flex-direction:column; gap:2px;}
+.toc-footer a:hover{color:var(--accent);}
+.toc-footer .dir{font-size:0.7rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--ink-faint);}
+.toc-footer .next{text-align:right; margin-left:auto;}
+
+/* ---- responsive ---- */
+@media (max-width: 920px){
+  .shell{grid-template-columns:1fr;}
+  .sidebar{
+    position:fixed; z-index:40; left:0; top:0; bottom:0; width:280px;
+    transform:translateX(-100%);
+    transition:transform 0.2s ease;
+    box-shadow:var(--shadow);
+  }
+  .sidebar.is-open{transform:translateX(0);}
+  .topbar{display:flex;}
+  .content{padding:36px 22px 0 22px;}
+  .scrim{
+    display:none; position:fixed; inset:0; background:rgba(10,10,20,0.4); z-index:30;
+  }
+  .scrim.is-open{display:block;}
+}
+</style>
+
+<div class="shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar__brand">
+      <div class="sidebar__brand-name">LinLang <span class="glyph">|ψ⟩</span></div>
+      <div class="sidebar__brand-tag">Referencia del lenguaje · v0.1</div>
+    </div>
+    <div class="sidebar__search">
+      <div class="sidebar__search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="navSearch" type="text" placeholder="Buscar en la referencia…" autocomplete="off">
+      </div>
+    </div>
+    <nav class="sidebar__nav" id="sidebarNav"></nav>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <button class="topbar__burger" id="burger" aria-label="Abrir navegación">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <strong style="font-family:'Newsreader',serif;">LinLang</strong>
+    </div>
+    <div class="content" id="content">
+<!-- CONTENT_START -->
+
+<section class="doc-section" id="empezando" data-kind="infra" data-label="Empezando">
+  <div class="eyebrow"><span class="dot"></span>Referencia de LinLang</div>
+  <h1 class="page-title">LinLang</h1>
+  <p class="lede">Un lenguaje donde no hay clases, ni objetos, ni siquiera "números" sueltos — solo espacios vectoriales, vectores, y transformaciones lineales entre ellos. El mismo modelo describe una tabla de tareas, un qubit, y la migración de ese qubit a otra máquina.</p>
+
+  <div class="card-grid">
+    <div class="card"><a href="#modelo-mental">
+      <div class="card__title">🧭 El modelo mental</div>
+      <p class="card__body">Por qué todo en LinLang — hasta un qubit — es un vector en un espacio declarado.</p>
+    </a></div>
+    <div class="card"><a href="#primera-app">
+      <div class="card__title">🛠️ Construí tu primera app</div>
+      <p class="card__body">Un gestor de tareas de punta a punta: espacio, transforms, persistencia, API.</p>
+    </a></div>
+    <div class="card"><a href="#hilbert-spaces">
+      <div class="card__title">⚛️ LinLang/Q</div>
+      <p class="card__body">La misma sintaxis, sobre ℂⁿ en vez de ℝⁿ: qubits, puertas, teleportación.</p>
+    </a></div>
+    <div class="card"><a href="#memoria">
+      <div class="card__title">🧠 Memoria y estructuras</div>
+      <p class="card__body">Qué pasa de verdad cuando escribís <code>let</code> — sin magia, con Go debajo.</p>
+    </a></div>
+  </div>
+
+  <div class="subsection">
+  <h3 id="que-es">¿Qué es LinLang?</h3>
+  <p>LinLang es un lenguaje interpretado, de tipado dinámico-por-espacio, construido sobre una idea única: <strong>cada dominio de datos es un espacio vectorial, cada entidad es un vector, y cada regla de negocio es una transformación lineal (o casi-lineal) entre espacios.</strong> No hay clases ni herencia — hay espacios (<code>space</code>) y las funciones puras entre ellos (<code>transform</code>, <code>func</code>).</p>
+  <p>La extensión <strong>LinLang/Q</strong> lleva esa misma idea a la mecánica cuántica: un espacio de Hilbert (<code>hilbert</code>) es, matemáticamente, un espacio vectorial sobre ℂ en vez de ℝ — así que <em>toda</em> la maquinaria del lenguaje (declarar el espacio, construir un vector dentro de él, transformarlo) se reutiliza sin cambios. No es una integración ni un plugin: es el mismo núcleo, instanciado sobre otro cuerpo numérico.</p>
+  <div class="callout">
+    <svg class="callout__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    <div>
+      <strong>Por qué esto importa en la práctica</strong>
+      <p>No hay dos lenguajes, uno clásico y otro cuántico atados con una API. <code>space</code> y <code>hilbert</code> comparten runtime, comparten persistencia, comparten el mismo <code>Vector</code> por debajo. Aprender la mitad clásica de esta guía es aprender el 80% de la mitad cuántica.</p>
+    </div>
+  </div>
+  </div>
+
+  <div class="subsection">
+  <h3 id="instalacion">Instalación y primer programa</h3>
+  <p>LinLang se distribuye como un único binario de Go (sin runtime externo, sin dependencias del sistema más allá de lo que tu programa use — SQLite y Redis son opcionales y solo se activan si pedís persistencia).</p>
+  <div class="code-block">
+    <div class="code-block__label"><span>bash</span></div>
+    <pre><code><span class="tok-com"># clonar y compilar</span>
+git clone https://github.com/Bulldrill/Linglang.git
+<span class="tok-kw">cd</span> Linglang
+go build -o linlang .
+
+<span class="tok-com"># correr un archivo .lin</span>
+./linlang examples/ejemplo.lin
+
+<span class="tok-com"># o entrar al REPL interactivo</span>
+./linlang -i</code></pre>
+  </div>
+  <p>Tu primer programa — tres líneas, sin <code>main</code>, sin <code>import</code>:</p>
+  <div class="code-block">
+    <div class="code-block__label"><span>saludo.lin</span></div>
+    <pre><code><span class="tok-kw">space</span> Personas: edad: Real, ingresos: Real
+<span class="tok-kw">let</span> p1 = Personas[25, 40000]
+<span class="tok-kw">print</span> p1</code></pre>
+  </div>
+  <div class="out-block"><span class="out-block__label">salida</span>[✔️] Espacio creado: Personas  dims=[edad ingresos]  types=[Real Real]
+[✔️] Vector p1 creado en espacio Personas  [25 40000]
+[📌] p1 = [25 40000]  (espacio: Personas)</div>
+  <p>No hay una llamada a "crear instancia" separada de la declaración del tipo: <code>Personas[25, 40000]</code> <em>es</em> la construcción del vector, literal, igual que <code>[25, 40000]</code> sería un array en otro lenguaje — solo que acá el array sabe a qué espacio pertenece.</p>
+  </div>
+
+  <div class="subsection">
+  <h3 id="modelo-mental">El modelo mental</h3>
+  <p>Tres ideas cargan todo el lenguaje. Si las internalizás, el resto de esta guía es vocabulario.</p>
+
+  <h4>1. Un espacio es un tipo, pero un tipo es solo una lista de dimensiones nombradas</h4>
+  <div class="code-block"><div class="code-block__label"><span>.lin</span></div><pre><code><span class="tok-kw">space</span> Tarea: id: Real, prioridad: Real, estado: Real, categoria: Real</code></pre></div>
+  <p>Esto no crea una clase con métodos. Crea un <code>core.Space</code> — básicamente <code>{Name: "Tarea", Dimensions: ["id","prioridad","estado","categoria"]}</code> — y a partir de ahí, <code>Tarea[1, 3, 0, 1]</code> es un punto en ℝ⁴. "Una tarea" no es un objeto con comportamiento propio; es una posición en un espacio de 4 dimensiones.</p>
+
+  <h4>2. Una regla de negocio es una función entre dos puntos en espacios (quizás distintos)</h4>
+  <div class="code-block"><div class="code-block__label"><span>.lin</span></div><pre><code><span class="tok-kw">transform</span> completar: Tarea x Tarea -> Tarea {
+    id        = p.id
+    prioridad = p.prioridad
+    estado    = 2
+    categoria = p.categoria
+}</code></pre></div>
+  <p>"Completar una tarea" no es <code>tarea.completar()</code> mutando algo. Es una función <code>Tarea × Tarea → Tarea</code> — toma el estado actual (<code>p</code>) y un vector delta (<code>m</code>, acá sin usar) y <em>produce un vector nuevo</em>. Nada se muta nunca; ver <a href="#memoria">Memoria y estructuras</a> para por qué eso es literal, no una metáfora.</p>
+
+  <h4>3. Un qubit es exactamente la misma idea, sobre ℂ</h4>
+  <div class="code-block"><div class="code-block__label"><span>.lin</span></div><pre><code><span class="tok-kw">hilbert</span> Qubit: dim 2
+<span class="tok-kw">let</span> psi = ket(Qubit, 0.6, 0.8)
+<span class="tok-kw">let</span> girado = apply(H_Qubit, psi)</code></pre></div>
+  <p><code>hilbert</code> declara un espacio igual que <code>space</code> (con amplitudes complejas en vez de componentes reales); <code>apply</code> es un <code>transform</code> restringido a ser unitario. No hay un segundo lenguaje acá — es <code>core.Space</code> y <code>core.Transform</code> con un cuerpo numérico distinto. Esta es, literalmente, la contribución central del proyecto: ver <a href="#linlangq">LinLang/Q</a>.</p>
+  </div>
+
+  <div class="subsection">
+  <h3 id="primera-app">Construí tu primera app: un gestor de tareas</h3>
+  <p>Vamos a construir, de punta a punta, la misma aplicación que vive en <code>examples/todo.lin</code> + <code>cmd/todo-server</code>: un backend de tareas con prioridad, estado y categoría, persistido de verdad, expuesto por HTTP. El objetivo es que veas cómo encajan <code>space</code>, <code>transform</code>, <code>persist</code> y <code>query</code> en un programa real, no en ejemplos sueltos.</p>
+
+  <h4>Paso 1 — el espacio del dominio</h4>
+  <div class="code-block"><div class="code-block__label"><span>todo.lin</span></div><pre><code><span class="tok-com"># id        — identificador único
+# prioridad — 1=baja  2=media  3=alta
+# estado    — 0=pendiente  1=en_progreso  2=completada
+# categoria — 1=trabajo  2=personal  3=urgente</span>
+<span class="tok-kw">space</span> Tarea: id: Real, prioridad: Real, estado: Real, categoria: Real</code></pre></div>
+  <p>Una decisión de diseño real acá: los estados y categorías son <em>enteros codificados como Real</em>, no un tipo enum. Esto es deliberado — mantiene todo el espacio en ℝ⁴, lo que significa que <code>norm()</code>, <code>dot()</code> y el centroide del espacio (ver <a href="#tabla-keywords">stats</a>) siguen siendo operaciones válidas sobre tareas completas, no solo sobre sus campos numéricos "de verdad".</p>
+
+  <h4>Paso 2 — las transiciones como transforms</h4>
+  <div class="code-block"><div class="code-block__label"><span>todo.lin</span></div><pre><code><span class="tok-kw">transform</span> completar: Tarea x Tarea -> Tarea {
+    id        = p.id
+    prioridad = p.prioridad
+    estado    = 2
+    categoria = p.categoria
+}
+
+<span class="tok-kw">transform</span> priorizar: Tarea x Tarea -> Tarea {
+    id        = p.id
+    prioridad = m.prioridad
+    estado    = p.estado
+    categoria = p.categoria
+}</code></pre></div>
+  <p>Notá el patrón: <code>completar</code> ignora <code>m</code> por completo (fuerza <code>estado = 2</code>, un valor constante) — es una transición de <em>estado</em>. <code>priorizar</code> en cambio lee <code>m.prioridad</code> — usa el segundo vector como <em>portador del valor nuevo</em>, un patrón de "delta". Ambos son la misma construcción sintáctica; la diferencia es solo qué dimensiones del body referencian <code>m</code>.</p>
+
+  <h4>Paso 3 — crear, persistir, consultar</h4>
+  <div class="code-block"><div class="code-block__label"><span>.lin</span></div><pre><code><span class="tok-kw">let</span> t1 = Tarea[1, 3, 0, 1]
+<span class="tok-kw">persist</span> t1
+
+<span class="tok-kw">let</span> t = query_one Tarea where id == 1
+<span class="tok-kw">let</span> t_new = completar(t, t)
+<span class="tok-kw">persist</span> t_new
+
+<span class="tok-kw">let</span> urgentes = query Tarea where prioridad == 3 and estado != 2</code></pre></div>
+  <p>Con <code>LINLANG_DB=memory://</code> (o sin configurar nada — es el default) esto vive solo en RAM del proceso. Cambiá la variable de entorno a <code>sqlite://linlang.db</code> o <code>redis://localhost:6379/0</code> y <strong>el programa no cambia una línea</strong> — ver <a href="#backends-persistencia">Backends de persistencia</a>.</p>
+
+  <h4>Paso 4 — exponerlo por HTTP</h4>
+  <p>El patrón de <code>cmd/todo-server</code> es el que vale la pena internalizar: cada endpoint HTTP no contiene lógica de negocio en Go — genera un fragmento de código <code>.lin</code> y lo corre en un <code>Runtime</code> fresco.</p>
+  <div class="code-block"><div class="code-block__label"><span>go</span></div><pre><code><span class="tok-com">// PUT /tasks/{id}/complete</span>
+code := fmt.Sprintf(
+    <span class="tok-str">"let t = query_one Tarea where id == %.0f\n"</span>+
+    <span class="tok-str">"let t_new = completar(t, t)\n"</span>+
+    <span class="tok-str">"persist t_new"</span>,
+    float64(id),
+)
+rt := parser.NewRuntime()
+rt.SetStore(db)
+rt.Parse(code)
+writeJSON(w, 200, rt.Vectors[<span class="tok-str">"t_new"</span>])</code></pre></div>
+  <p>Go es la "carcasa": parsea HTTP, serializa JSON. Toda la regla de negocio — qué significa "completar", qué prioridades son válidas, cómo se calcula el centroide del espacio — vive en <code>.lin</code>, y se puede cambiar <strong>sin recompilar el servidor</strong>. Corré el ejemplo real:</p>
+  <div class="code-block"><div class="code-block__label"><span>bash</span></div><pre><code>LINLANG_DB=redis://redis:6379/0 docker compose up --build
+curl -s -X POST localhost:8080/tasks -H <span class="tok-str">"Content-Type: application/json"</span> \
+  -d <span class="tok-str">'{"title":"Comprar pan","priority":3,"category":1}'</span>
+curl -s localhost:8080/tasks/stats | python3 -m json.tool</code></pre></div>
+  </div>
+</section>
+
+<section class="doc-section" id="lenguaje" data-kind="classical" data-label="El Lenguaje">
+  <div class="eyebrow"><span class="dot" style="background:var(--warm)"></span>Núcleo clásico</div>
+  <h1 class="page-title">El lenguaje</h1>
+  <p class="lede">Todo lo que no es cuántico ni distribución. Si ya leíste <a href="#modelo-mental">el modelo mental</a>, esta sección es, en gran parte, llenar los detalles de sintaxis.</p>
+
+  <div class="subsection">
+  <h3 id="espacios">Espacios — <code>space</code></h3>
+  <div class="sig"><span class="tok-kw">space</span> &lt;nombre&gt;: &lt;dim&gt;: &lt;tipo&gt;<span class="p">,</span> &lt;dim&gt;: &lt;tipo&gt;<span class="p">,</span> ...</div>
+  <p>Declara un espacio vectorial nombrado. Cada dimensión tiene un nombre y un tipo opcional (<code>Real</code> si se omite — ver <a href="#tipos">Tipos</a>). Un espacio es, en Go, exactamente esto:</p>
+  <div class="code-block"><div class="code-block__label"><span>core/spaces.go</span></div><pre><code><span class="tok-kw">type</span> Space <span class="tok-kw">struct</span> {
+    Name       string
+    Dimensions []string
+    Types      []DimType <span class="tok-com">// paralelo a Dimensions; Real por defecto</span>
+}</code></pre></div>
+  <p>No hay métodos, no hay validación más allá del número de componentes en el literal. Redeclarar un espacio con el mismo nombre simplemente sobreescribe la entrada en <code>Runtime.Spaces</code> — no hay protección contra eso, es responsabilidad del programa.</p>
+  <div class="code-block"><div class="code-block__label"><span>.lin</span></div><pre><code><span class="tok-kw">space</span> Personas: edad: Real, ingresos: Real, energia: Real
+<span class="tok-kw">space</span> Tarea: id: Real, titulo: String, prioridad: Real</code></pre></div>
+  </div>
+
+  <div class="subsection">
+  <h3 id="vectores">Vectores y literales</h3>
+  <div class="sig"><span class="t">Espacio</span>[v<span class="p">₁</span><span class="p">,</span> v<span class="p">₂</span><span class="p">,</span> ..., v<span class="p">ₙ</span>]</div>
+  <p>Un literal de vector es el nombre del espacio seguido de sus componentes entre corchetes, en el mismo orden que las dimensiones declaradas. El número de valores debe coincidir exactamente con <code>len(Dimensions)</code> — si no coincide, <code>core.NewVector</code> hace <code>panic</code> (es uno de los pocos lugares del runtime que no falla "suave").</p>
+  <div class="code-block"><div class="code-block__label"><span>.lin</span></div><pre><code><span class="tok-kw">let</span> p1 = Personas[25, 40000, 0.8]
+<span class="tok-kw">let</span> t1 = Tarea[1, <span class="tok-str">"comprar pan, leche y huevos"</span>, 3]</code></pre></div>
+  <p>Un string entre comillas dobles es válido en cualquier posición cuya dimensión sea <code>String</code> (ver abajo) — incluso con comas adentro: el parser es consciente de comillas y no corta el string en la coma interna.</p>
+  <p>Cada vector tiene una identidad propia, independiente de su contenido:</p>
+  <div class="deflist">
+    <dt>ID</dt><dd><code>int64</code> — autoincremental, <strong>global al proceso</strong> (no por espacio, no por <code>Runtime</code>). Es el contador <code>vectorIDCounter</code> en <code>core/vectors.go</code>.</dd>
+    <dt>Space</dt><dd>puntero al <code>*Space</code> del que es instancia.</dd>
+    <dt>Values</dt><dd><code>[]float64</code> — un slice de Go, del mismo largo que las dimensiones.</dd>
+  </div>
+  <div class="callout is-warm">
+    <svg class="callout__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>
+    <div><strong>El ID no es la primera dimensión</strong>
+    <p>El ID autoincremental (<code>v.ID</code>) y la dimensión que el programa llama <code>id</code> (<code>v.Values[0]</code>) son cosas distintas que suelen confundirse. Si tu espacio declara una dimensión literalmente llamada <code>id</code>, las expresiones <code>p.id</code> dentro de un <code>transform</code> leen <em>esa dimensión</em>, no el contador interno — el contador solo se usa como fallback si no existe ninguna dimensión con ese nombre. Ver <a href="#expresiones">Expresiones aritméticas</a>.</p></div>
+  </div>
+  </div>
+
+  <div class="subsection">
+  <h3 id="tipos">Tipos: <code>Real</code> y <code>String</code></h3>
+  <p>LinLang tiene exactamente dos tipos de dimensión. No hay enteros, booleanos, ni tipos definidos por el usuario más allá de un <code>space</code> entero.</p>
+  <div class="table-wrap"><table class="ref-table">
+    <thead><tr><th>Tipo</th><th>Representación en Go</th><th>Participa en aritmética</th><th>Uso típico</th></tr></thead>
+    <tbody>
+      <tr><td><code>Real</code> <span class="pill is-neutral">default</span></td><td><code>float64</code></td><td>Sí — <code>add</code>, <code>dot</code>, <code>norm</code>, <code>scale</code>, <code>project</code></td><td>magnitudes, contadores, enums codificados</td></tr>
+      <tr><td><code>String</code></td><td><code>string</code>, en un mapa aparte</td><td>No — excluida de toda operación vectorial</td><td>títulos, etiquetas, metadata</td></tr>
+    </tbody>
+  </table></div>
+  <p>Internamente, una dimensión <code>String</code> <strong>no ocupa un slot real en aritmética</strong>: su posición en <code>Values</code> queda en <code>0</code> (sin usar), y el valor de verdad vive en <code>Vector.Strings map[string]string</code>, indexado por nombre de dimensión. Esto es lo que te permite llamar <code>norm(t1)</code> sobre una tarea con título sin que el texto "contamine" la magnitud:</p>
+  <div class="code-block"><div class="code-block__label"><span>.lin</span></div><pre><code><span class="tok-kw">space</span> Tarea: id: Real, titulo: String, prioridad: Real
+<span class="tok-kw">let</span> t1 = Tarea[1, <span class="tok-str">"comprar pan"</span>, 3]
+<span class="tok-kw">let</span> n = norm(t1)  <span class="tok-com"># = sqrt(1² + 3²) — "titulo" no participa</span></code></pre></div>
+  <p>Las columnas <code>String</code> se persisten de verdad: SQLite las mapea a columnas <code>TEXT</code>, Redis guarda el literal (no un float formateado), y <code>MemoryStore</code> guarda ambos lados. <code>query</code>/<code>filter</code> soportan igualdad sobre <code>String</code> (<code>==</code>, <code>!=</code>) — ver <a href="#multi-condicion">multi-condición</a>.</p>
+  </div>
+
+  <div class="subsection">
+  <h3 id="inferencia">Inferencia de tipos</h3>
+  <p>Si omitís el nombre del espacio en un literal, el runtime lo infiere por <strong>aridad</strong>: busca, entre todos los espacios declarados, cuál tiene exactamente esa cantidad de dimensiones.</p>
+  <div class="code-block"><div class="code-block__label"><span>.lin</span></div><pre><code><span class="tok-kw">space</span> Personas: edad: Real, ingresos: Real, energia: Real
+<span class="tok-kw">space</span> Mascotas: edad: Real, especie: Real
+
+<span class="tok-kw">let</span> p1 = [25, 40000, 0.8]  <span class="tok-com"># infiere Personas (3 dims)</span>
+<span class="tok-kw">let</span> m1 = [3, 1]            <span class="tok-com"># infiere Mascotas (2 dims)</span></code></pre></div>
+  <div class="out-block"><span class="out-block__label">salida</span>[🔮] p1: tipo inferido = Personas (3 dimensiones)
+[🔮] m1: tipo inferido = Mascotas (2 dimensiones)</div>
+  <p>Si <strong>ningún</strong> espacio tiene esa aridad, o si <strong>más de uno</strong> la comparte, la inferencia no adivina — reporta un error capturable (<code>TypeInferenceError</code>, ver <a href="#errores">manejo de errores</a>) nombrando los candidatos ambiguos en vez de elegir uno arbitrariamente.</p>
+  </div>
+
+  <div class="subsection">
+  <h3 id="operaciones-nativas">Operaciones vectoriales nativas</h3>
+  <p>Cinco funciones integradas, todas sobre el mismo <code>core.Vector</code>. Ninguna muta su argumento — <code>Add</code>/<code>Scale</code>/<code>Project</code> siempre devuelven un vector nuevo (ver <a href="#memoria">por qué</a>).</p>
+  <div class="table-wrap"><table class="ref-table">
+    <thead><tr><th>Función</th><th>Firma</th><th>Devuelve</th><th>Complejidad</th></tr></thead>
+    <tbody>
+      <tr><td><code>add(v1, v2)</code></td><td>mismo espacio</td><td>vector nuevo, componente a componente</td><td class="num">O(d)</td></tr>
+      <tr><td><code>scale(v, k)</code></td><td><code>k</code>: literal o escalar ligado</td><td>vector nuevo, cada componente × k</td><td class="num">O(d)</td></tr>
+      <tr><td><code>dot(v1, v2)</code></td><td>mismo espacio</td><td>escalar (producto interno euclídeo)</td><td class="num">O(d)</td></tr>
+      <tr><td><code>norm(v)</code></td><td>—</td><td>escalar (magnitud L2)</td><td class="num">O(d)</td></tr>
+      <tr><td><code>project v onto Espacio</code></td><td>sintaxis especial, no <code>fn(...)</code></td><td>vector en el espacio destino; dimensiones sin coincidencia quedan en 0</td><td class="num">O(d₁·d₂)</td></tr>
+    </tbody>
+  </table></div>
+  <div class="code-block"><div class="code-block__label"><span>.lin</span></div><pre><code><span class="tok-kw">let</span> suma      = add(p1, p2)
+<span class="tok-kw">let</span> escalado  = scale(p1, 2)
+<span class="tok-kw">let</span> similitud = dot(p1, p2)
+<span class="tok-kw">let</span> magnitud  = norm(p1)
+<span class="tok-kw">let</span> perfil    = project p1 onto Perfil</code></pre></div>
+  </div>
+
+  <div class="subsection">
+  <h3 id="transforms">Transforms</h3>
+  <div class="sig"><span class="tok-kw">transform</span> &lt;nombre&gt;: &lt;Dom1&gt; x &lt;Dom2&gt; -> &lt;Codominio&gt; { &lt;dim&gt; = &lt;expr&gt; ... }</div>
+  <p>Una función binaria pura entre espacios: recibe dos vectores (<code>p</code> del primer dominio, <code>m</code> del segundo) y produce uno nuevo en el codominio, una línea por dimensión de salida.</p>
+  <div class="code-block"><div class="code-block__label"><span>.lin</span></div><pre><code><span class="tok-kw">transform</span> adoptar: Personas x Mascotas -> Adopciones {
+    persona_id = p.id
+    mascota_id = m.id
+    compat     = p.energia * m.edad / 10
+}
+<span class="tok-kw">let</span> a1 = adoptar(p1, m1)</code></pre></div>
+  <p>Cada <code>dim = expr</code> es evaluada independientemente — no hay <code>return</code>, no hay flujo de control dentro del body, solo una expresión aritmética por dimensión de salida (ver <a href="#expresiones">Expresiones</a>). Si una dimensión del codominio no aparece en el body, queda en <code>0</code>.</p>
+  </div>
+
+  <div class="subsection">
+  <h3 id="funciones">Funciones — <code>func</code></h3>
+  <div class="sig"><span class="tok-kw">func</span> &lt;nombre&gt;: &lt;Dominio&gt; -> &lt;Codominio&gt; { &lt;dim&gt; = &lt;expr&gt; ... }</div>
+  <p>La contraparte <em>unaria</em> de <code>transform</code>: un solo dominio, llamada con un solo argumento. No es un concepto nuevo en el runtime — es, literalmente, un <code>transform</code> cuyo segundo dominio es <code>nil</code>, reutilizando toda la maquinaria existente (las expresiones <code>m.dim</code> ya devolvían <code>0</code> cuando <code>m</code> es <code>nil</code>, así que no hizo falta ningún caso especial para soportar esto).</p>
+  <div class="code-block"><div class="code-block__label"><span>.lin</span></div><pre><code><span class="tok-kw">func</span> doblar: Personas -> Personas {
+    id      = p.id
+    energia = p.energia * 2
+}
+<span class="tok-kw">let</span> p2 = doblar(p1)</code></pre></div>
+  </div>
+
+  <div class="subsection">
+  <h3 id="expresiones">Expresiones aritméticas</h3>
+  <p>El cuerpo de un <code>transform</code>/<code>func</code> usa un mini-lenguaje de expresiones: literales numéricos, <code>+ - * /</code> con la precedencia usual, paréntesis, menos unario, y acceso a campos <code>p.dim</code> / <code>m.dim</code>.</p>
+  <div class="deflist">
+    <dt>p.dim</dt><dd>lee la dimensión <code>dim</code> del primer argumento. Si <code>dim</code> no existe en el espacio de <code>p</code>, evalúa a <code>0</code> (no es un error).</dd>
+    <dt>m.dim</dt><dd>igual, para el segundo argumento. Si <code>m</code> es <code>nil</code> (llamada a un <code>func</code> unario), cualquier <code>m.dim</code> evalúa a <code>0</code>.</dd>
+    <dt>p.id / m.id</dt><dd>caso especial: si el espacio <strong>no</strong> declara una dimensión llamada <code>id</code>, cae al contador autoincremental <code>Vector.ID</code> en vez de a <code>0</code>. Si el espacio sí declara <code>id</code>, esa dimensión gana — ver el callout en <a href="#vectores">Vectores</a>.</dd>
+  </div>
+  <p>División por cero evalúa a <code>0</code> en vez de propagar <code>Inf</code>/<code>NaN</code> — una elección deliberada para que una regla de negocio con un divisor ocasionalmente nulo no envenene silenciosamente el resto del cálculo con <code>NaN</code>.</p>
+  </div>
+
+  <div class="subsection">
+  <h3 id="condicionales">Condicionales — <code>when</code></h3>
+  <div class="sig"><span class="tok-kw">when</span> &lt;lhs&gt; &lt;op&gt; &lt;valor&gt;: <br>&nbsp;&nbsp;&nbsp;&nbsp;&lt;accion&gt;(&lt;vector&gt;)</div>
+  <p><code>when</code> no es un <code>if</code> de bloque — es una guarda de una sola condición que registra una acción diferida, ejecutada en la siguiente línea no vacía. El lado izquierdo acepta varias formas:</p>
+  <div class="table-wrap"><table class="ref-table">
+    <thead><tr><th>Forma de LHS</th><th>Ejemplo</th><th>Significado</th></tr></thead>
+    <tbody>
+      <tr><td><code>vec.dim</code></td><td><code>a1.compat</code></td><td>dimensión de un vector clásico</td></tr>
+      <tr><td>nombre de escalar</td><td><code>similitud</code></td><td>cualquier valor en <code>Scalars</code> (resultado de <code>dot</code>, <code>norm</code>, <code>purity</code>, ...)</td></tr>
+      <tr><td><code>purity(rho)</code></td><td>—</td><td>pureza de una matriz de densidad</td></tr>
+      <tr><td><code>qnorm(psi)</code></td><td>—</td><td>norma de un estado cuántico</td></tr>
+      <tr><td><code>count(coleccion)</code></td><td>—</td><td>tamaño de una colección</td></tr>
+    </tbody>
+  </table></div>
+  <p>Operadores: <code>&gt; &lt; &gt;= &lt;= == !=</code>.</p>
+  <div class="code-block"><div class="code-block__label"><span>.lin</span></div><pre><code><span class="tok-kw">when</span> a1.compat >= 0.2:
+    approve(a1)</code></pre></div>
+  </div>
+
+  <div class="subsection">
+  <h3 id="colecciones">Colecciones</h3>
+  <p>Una colección (<code>[]*core.Vector</code> en Go) nace de <code>query</code>, <code>filter</code> o <code>map</code>, y vive en <code>Runtime.Collections</code>. Tres operaciones de primera clase:</p>
+
+  <h4>Iteración — <code>for</code></h4>
+  <div class="sig"><span class="tok-kw">for</span> &lt;var&gt; <span class="tok-kw">in</span> &lt;coleccion&gt; { &lt;sentencias&gt; }</div>
+  <p>Liga <code>var</code> a cada vector de la colección, por turno, y corre el cuerpo completo para cada uno. El cuerpo puede contener <em>cualquier</em> sentencia válida a nivel de programa — no hay un sub-lenguaje restringido para el body.</p>
+  <div class="code-block"><div class="code-block__label"><span>.lin</span></div><pre><code><span class="tok-kw">for</span> t <span class="tok-kw">in</span> urgentes {
+    <span class="tok-kw">print</span> t
+    <span class="tok-kw">let</span> n = norm(t)
+}</code></pre></div>
+  <div class="callout is-warm">
+    <svg class="callout__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>
+    <div><strong>Límite conocido</strong><p>El cuerpo de un <code>for</code> no puede contener <em>otro</em> bloque con llaves (<code>gate</code>, <code>transform</code>, otro <code>for</code>) — el recolector de líneas solo rastrea el par de llaves más externo. No afecta a ningún programa de ejemplo actual, pero es una limitación real del parser, no una regla del lenguaje.</p></div>
+  </div>
+
+  <h4>Filtrado — <code>filter</code></h4>
+  <div class="sig">filter(&lt;coleccion&gt;<span class="p">,</span> &lt;dim&gt; &lt;op&gt; &lt;valor&gt; [and|or ...])</div>
+  <p>A diferencia de <code>query</code> (que solo puede filtrar contra el store, ver <a href="#persist-query">Persistencia</a>), <code>filter</code> opera enteramente en memoria sobre una colección ya cargada — por eso puede comparar dimensiones <code>String</code> por igualdad, algo que <code>query</code> no soporta.</p>
+  <div class="code-block"><div class="code-block__label"><span>.lin</span></div><pre><code><span class="tok-kw">let</span> hogar = filter(todas, categoria == <span class="tok-str">"hogar"</span>)
+<span class="tok-kw">let</span> urgentes = filter(todas, prioridad == 3 and estado == 0)</code></pre></div>
+
+  <h4>Transformación — <code>map</code></h4>
+  <div class="sig">map(&lt;coleccion&gt;<span class="p">,</span> &lt;transform&gt;<span class="p">,</span> &lt;vector-fijo&gt;)</div>
+  <p>Aplica un <code>transform</code> ya registrado a cada vector de la colección, contra un segundo vector fijo — consistente con que los transforms de LinLang modelan relaciones <em>binarias</em>, no funciones unarias de colección (para eso está <code>func</code> combinado con <code>for</code>).</p>
+  <div class="code-block"><div class="code-block__label"><span>.lin</span></div><pre><code><span class="tok-kw">let</span> resultados = map(personas, adoptar, m1)  <span class="tok-com"># adoptar(p, m1) para cada p</span></code></pre></div>
+
+  <h4>Indexado</h4>
+  <div class="sig">&lt;coleccion&gt;[i]</div>
+  <p>Acceso por posición, 0-indexado. Fuera de rango reporta un error capturable (<code>IndexOutOfRange</code>) en vez de hacer panic.</p>
+  <div class="code-block"><div class="code-block__label"><span>.lin</span></div><pre><code><span class="tok-kw">let</span> primero = resultados[0]</code></pre></div>
+  </div>
+
+  <div class="subsection">
+  <h3 id="errores">Manejo de errores — <code>try</code>/<code>catch</code></h3>
+  <div class="sig"><span class="tok-kw">try</span> { &lt;sentencias&gt; }<br><span class="tok-kw">catch</span> &lt;Nombre&gt; { &lt;sentencias&gt; }</div>
+  <p>El cuerpo del <code>try</code> corre línea por línea y se <strong>detiene en la primera</strong> que reporte un error capturable. Si el nombre del error coincide con la cláusula <code>catch</code> (o esta viene vacía), corre el body del <code>catch</code>; si no coincide, se reporta el desajuste y no se "traga" el error silenciosamente. Si el <code>try</code> tiene éxito completo, el <code>catch</code> nunca corre.</p>
+  <div class="code-block"><div class="code-block__label"><span>.lin</span></div><pre><code><span class="tok-kw">try</span> {
+    <span class="tok-kw">let</span> t = query_one Tarea where id == 99
+}
+<span class="tok-kw">catch</span> NotFound {
+    <span class="tok-kw">let</span> fallback = Tarea[0, 0]
+}</code></pre></div>
+  <p>No todo error del intérprete es capturable — solo un subconjunto deliberado de condiciones de runtime (no de sintaxis) está conectado:</p>
+  <div class="table-wrap"><table class="ref-table">
+    <thead><tr><th>Nombre</th><th>Se dispara en</th></tr></thead>
+    <tbody>
+      <tr><td><code>NotFound</code></td><td><code>query_one</code> sin resultados; <code>project</code>/<code>dot</code>/<code>norm</code>/<code>scale</code>/<code>add</code> con un vector inexistente; llamada a <code>func</code>/<code>transform</code> con un argumento inexistente</td></tr>
+      <tr><td><code>IndexOutOfRange</code></td><td>indexado de colección fuera de rango</td></tr>
+      <tr><td><code>TypeInferenceError</code></td><td>inferencia de tipo ambigua o sin coincidencias</td></tr>
+      <tr><td><code>ImportError</code></td><td><code>include</code> de un archivo inexistente o ilegible</td></tr>
+    </tbody>
+  </table></div>
+  <p>Un error de <strong>sintaxis</strong> (una línea mal formada) nunca es capturable — es un bug del programa, no una condición de la que tenga sentido "recuperarse".</p>
+  </div>
+
+  <div class="subsection">
+  <h3 id="modulos">Módulos — <code>include</code></h3>
+  <div class="sig"><span class="tok-kw">include</span> <span class="tok-str">"ruta/al/archivo.lin"</span></div>
+  <p>Lee y parsea el archivo en el <strong>mismo</strong> <code>Runtime</code> — no es una importación con namespace propio, es literalmente como si pegaras el contenido del archivo ahí. Las rutas se resuelven relativas al directorio de trabajo del proceso, no al archivo que incluye.</p>
+  <p>Incluir el mismo archivo dos veces (directo, o a través de un ciclo A→B→A) es un no-op silencioso la segunda vez — el runtime rastrea qué rutas ya cargó.</p>
+  <div class="code-block"><div class="code-block__label"><span>.lin</span></div><pre><code><span class="tok-kw">include</span> <span class="tok-str">"schema.lin"</span>
+<span class="tok-kw">let</span> t1 = Tarea[1, 3]  <span class="tok-com"># Tarea viene de schema.lin</span></code></pre></div>
+  </div>
+
+  <div class="subsection">
+  <h3 id="repl">REPL interactivo</h3>
+  <div class="code-block"><div class="code-block__label"><span>bash</span></div><pre><code>./linlang -i
+<span class="tok-com"># o: ./linlang repl</span></code></pre></div>
+  <p>Un <code>Runtime</code> persistente, alimentado una línea a la vez. Lo interesante no es la interfaz — es que <strong>no hizo falta escribir ningún buffer especial para el REPL</strong>: los bloques multi-línea (<code>transform</code>, <code>gate</code>, <code>for</code>, <code>try</code>) ya rastrean su propio estado entre llamadas a <code>ParseLine</code> (ver <a href="#bloques-multilinea">Bloques multi-línea</a>), así que tipear un <code>transform</code> a lo largo de varias líneas del prompt funciona exactamente igual que en un archivo. El prompt cambia a <code>...</code> mientras estás dentro de un bloque abierto.</p>
+  <p>El REPL conecta el store vía <code>LINLANG_DB</code> igual que <code>todo-server</code>, así que <code>persist</code>/<code>query</code> funcionan interactivamente también.</p>
+  </div>
+</section>
+
+<section class="doc-section" id="persistencia" data-kind="classical" data-label="Persistencia">
+  <div class="eyebrow"><span class="dot" style="background:var(--warm)"></span>Capa de persistencia</div>
+  <h1 class="page-title">Persistencia transparente</h1>
+  <p class="lede">Guardar un vector no debería requerir que el programa sepa si va a SQLite, Redis o memoria. En LinLang, no lo requiere.</p>
+
+  <div class="subsection">
+  <h3 id="persist-query">persist / drop / query / query_one</h3>
+  <div class="table-wrap"><table class="ref-table">
+    <thead><tr><th>Sentencia</th><th>Efecto</th></tr></thead>
+    <tbody>
+      <tr><td><code>persist v</code></td><td>upsert de <code>v</code> en el backend configurado, por la primera dimensión como clave</td></tr>
+      <tr><td><code>drop v</code></td><td>elimina del backend y del runtime</td></tr>
+      <tr><td><code>let x = query Espacio</code></td><td>carga todos los vectores del espacio → <code>Runtime.Collections["x"]</code></td></tr>
+      <tr><td><code>let x = query Espacio where dim op val [and/or ...]</code></td><td>igual, filtrado</td></tr>
+      <tr><td><code>let x = query_one Espacio where dim op val</code></td><td>primer resultado → <code>Runtime.Vectors["x"]</code> (no una colección)</td></tr>
+    </tbody>
+  </table></div>
+  <div class="code-block"><div class="code-block__label"><span>.lin</span></div><pre><code><span class="tok-kw">let</span> t1 = Tarea[1, 3, 0, 1]
+<span class="tok-kw">persist</span> t1
+
+<span class="tok-kw">let</span> todas = <span class="tok-kw">query</span> Tarea
+<span class="tok-kw">let</span> t = query_one Tarea where id == 1
+<span class="tok-kw">drop</span> t1</code></pre></div>
+  </div>
+
+  <div class="subsection">
+  <h3 id="multi-condicion">Multi-condición en <code>where</code></h3>
+  <p><code>and</code> liga más fuerte que <code>or</code> — precedencia booleana estándar: <code>a and b or c</code> es <code>(a and b) or c</code>, nunca <code>a and (b or c)</code>.</p>
+  <div class="code-block"><div class="code-block__label"><span>.lin</span></div><pre><code><span class="tok-kw">let</span> urgentes = <span class="tok-kw">query</span> Tarea where prioridad == 3 and estado == 0
+<span class="tok-kw">let</span> mix      = <span class="tok-kw">query</span> Tarea where prioridad == 1 or categoria == 1</code></pre></div>
+  <div class="callout is-warm">
+    <svg class="callout__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>
+    <div><strong><code>query</code> vs. <code>filter</code></strong><p><code>query</code> pasa el filtro al <code>store.Backend</code>, que solo entiende <code>[]float64</code> — por diseño, nunca va a poder comparar una dimensión <code>String</code> por igualdad. Si necesitás eso, cargá la colección completa con <code>query</code> (sin <code>where</code>, o con un filtro parcial) y refiná con <code>filter</code>, que sí opera sobre el <code>*Vector</code> completo. Ver <a href="#colecciones">Colecciones</a>.</p></div>
+  </div>
+  </div>
+
+  <div class="subsection">
+  <h3 id="backends-persistencia">Backends: memoria, SQLite, Redis</h3>
+  <p>Un único DSN en la variable de entorno <code>LINLANG_DB</code> decide el backend. El programa <code>.lin</code> no cambia una línea entre uno y otro.</p>
+  <div class="table-wrap"><table class="ref-table">
+    <thead><tr><th>DSN</th><th>Implementación</th><th>Notas</th></tr></thead>
+    <tbody>
+      <tr><td><code>memory://</code> <span class="pill is-neutral">default</span></td><td><code>store.MemoryStore</code></td><td>mapa en RAM, protegido con <code>sync.RWMutex</code> — se pierde al terminar el proceso</td></tr>
+      <tr><td><code>sqlite://archivo.db</code></td><td><code>store.SQLiteStore</code></td><td>una tabla por espacio, creada al primer <code>persist</code>; columnas <code>REAL</code> o <code>TEXT</code> según el tipo de dimensión; vía <code>modernc.org/sqlite</code> (Go puro, sin cgo)</td></tr>
+      <tr><td><code>redis://host:puerto/db</code></td><td><code>store.RedisStore</code></td><td>cada vector = un Hash (<code>linlang:{Espacio}:{id}</code>), más un Set de índice (<code>linlang:{Espacio}:_ids</code>) para poder iterar todos</td></tr>
+    </tbody>
+  </table></div>
+  <p>Las tres implementan la misma interfaz chica:</p>
+  <div class="code-block"><div class="code-block__label"><span>store/store.go</span></div><pre><code><span class="tok-kw">type</span> Backend <span class="tok-kw">interface</span> {
+    Upsert(space *core.Space, values []float64, strs map[string]string) <span class="tok-kw">error</span>
+    Query(space *core.Space, filter <span class="tok-kw">func</span>([]float64) <span class="tok-kw">bool</span>) ([]*core.Vector, <span class="tok-kw">error</span>)
+    Delete(space *core.Space, id float64) <span class="tok-kw">error</span>
+    Close() <span class="tok-kw">error</span>
+}</code></pre></div>
+  <p>Esquema generado automáticamente: <code>space Tarea: id: Real, prioridad: Real, ...</code> es semánticamente equivalente a <code>CREATE TABLE "Tarea" ("id" REAL PRIMARY KEY, "prioridad" REAL NOT NULL DEFAULT 0, ...)</code> — nunca escribís DDL a mano.</p>
+  </div>
+</section>
+
+<section class="doc-section" id="linlangq" data-kind="quantum" data-label="LinLang/Q">
+  <div class="eyebrow"><span class="dot"></span>Extensión cuántica</div>
+  <h1 class="page-title">LinLang/Q</h1>
+  <p class="lede">Todo lo de <a href="#lenguaje">El lenguaje</a>, instanciado sobre ℂⁿ. Un <code>hilbert</code> es un <code>space</code>; un <code>ket</code> es un vector; una <code>gate</code> es un <code>transform</code> restringido a ser unitario. La diferencia es el cuerpo numérico, no el modelo.</p>
+
+  <div class="subsection">
+  <h3 id="hilbert-spaces">Espacios de Hilbert — <code>hilbert</code></h3>
+  <div class="sig"><span class="tok-kw">hilbert</span> &lt;nombre&gt;: <span class="tok-kw">dim</span> &lt;n&gt;</div>
+  <div class="code-block"><div class="code-block__label"><span>.lin</span></div><pre><code><span class="tok-kw">hilbert</span> Qubit: <span class="tok-kw">dim</span> 2
+<span class="tok-kw">hilbert</span> QReg2: <span class="tok-kw">dim</span> 4</code></pre></div>
+  <p>Declarar un espacio de dimensión 2 o 4 <strong>auto-registra</strong> las puertas estándar para esa dimensión — no hace falta escribirlas a mano:</p>
+  <div class="table-wrap"><table class="ref-table">
+    <thead><tr><th>dim</th><th>Puertas auto-registradas</th></tr></thead>
+    <tbody>
+      <tr><td>cualquiera</td><td><code>I_&lt;nombre&gt;</code> (identidad)</td></tr>
+      <tr><td>2</td><td><code>H_&lt;nombre&gt;</code>, <code>X_&lt;nombre&gt;</code>, <code>Y_&lt;nombre&gt;</code>, <code>Z_&lt;nombre&gt;</code></td></tr>
+      <tr><td>4</td><td><code>CNOT_&lt;nombre&gt;</code></td></tr>
+    </tbody>
+  </table></div>
+  </div>
+
+  <div class="subsection">
+  <h3 id="estados-ket">Estados — <code>ket</code></h3>
+  <div class="sig">ket(&lt;Espacio&gt;<span class="p">,</span> amp<span class="p">₀</span><span class="p">,</span> amp<span class="p">₁</span><span class="p">,</span> ...)</div>
+  <p>Construye <code>core.QuantumState</code> — una lista de amplitudes complejas (<code>[]complex128</code>) atadas a un <code>*HilbertSpace</code>. Las amplitudes aceptan notación compleja: <code>0.5</code>, <code>0.5i</code>, <code>0.5+0.5i</code>, <code>-0.5-0.5i</code>.</p>
+  <div class="code-block"><div class="code-block__label"><span>.lin</span></div><pre><code><span class="tok-kw">let</span> ket0 = ket(Qubit, 1, 0)                 <span class="tok-com"># |0⟩</span>
+<span class="tok-kw">let</span> psi  = ket(Qubit, 0.6, 0.8)              <span class="tok-com"># estado arbitrario normalizado</span></code></pre></div>
+  <p>No hay normalización automática — si pasás amplitudes cuya suma de cuadrados no da 1, el estado queda así; <code>Norm()</code>/<code>Normalize()</code> existen como operaciones explícitas en <code>core/hilbert.go</code> pero no hay un builtin de lenguaje que las exponga directamente (se usan internamente, p. ej. en <code>teleport</code>).</p>
+  </div>
+
+  <div class="subsection">
+  <h3 id="puertas">Puertas — <code>gate</code></h3>
+  <div class="sig"><span class="tok-kw">gate</span> &lt;nombre&gt;: &lt;Dominio&gt; -> &lt;Codominio&gt; { <span class="tok-kw">row</span> [...] ... }</div>
+  <p>Declarás la matriz fila por fila; al cerrar el bloque, el runtime verifica <code>U†U = I</code> (unitariedad) con tolerancia <code>10⁻⁹</code> y te avisa si no se cumple — pero <strong>no rechaza</strong> la puerta, solo lo marca en el log. Es responsabilidad del programa no usar una puerta no-unitaria.</p>
+  <div class="code-block"><div class="code-block__label"><span>.lin</span></div><pre><code><span class="tok-kw">gate</span> MiH: Qubit -> Qubit {
+    <span class="tok-kw">row</span> [0.7071067811865476,  0.7071067811865476]
+    <span class="tok-kw">row</span> [0.7071067811865476, -0.7071067811865476]
+}</code></pre></div>
+  <div class="out-block"><span class="out-block__label">salida</span>[✔️] Gate 'MiH' registrada  [✓ unitaria]</div>
+  <p>Combinar puertas sin declarar la matriz a mano: <code>kron(g1, g2)</code> (producto de Kronecker — ver abajo).</p>
+  </div>
+
+  <div class="subsection">
+  <h3 id="operaciones-cuanticas">apply, tensor, measure, shots</h3>
+
+  <h4><code>apply(gate, estado)</code> → estado</h4>
+  <p>Producto matriz-vector <code>U|ψ⟩</code>, delegado al <code>QuantumBackend</code> activo (ver <a href="#backends-dist">Backends</a>) — no siempre es álgebra local; depende de qué <code>technology</code> esté seleccionada.</p>
+
+  <h4><code>tensor(ψ1, ψ2)</code> → estado en el espacio producto</h4>
+  <p>Producto de Kronecker de las amplitudes; el espacio producto se crea (o reutiliza) automáticamente con dimensión <code>dim(H1) × dim(H2)</code>.</p>
+
+  <h4><code>measure(ψ)</code> → entero clásico</h4>
+  <p><strong>Determinista</strong> — devuelve el <code>argmax</code> de <code>|αᵢ|²</code>, no un muestreo real. Esto es deliberado, para que los ejemplos y tests sean reproducibles. Para muestreo real, usá <code>shots</code>.</p>
+
+  <h4><code>shots(ψ, n)</code> → histograma</h4>
+  <p>Muestrea <code>n</code> veces de la distribución de Born de verdad (vía CDF inversa), y devuelve un <code>map[int]int</code> de conteos — el mismo formato que usarían resultados de hardware real.</p>
+  <div class="code-block"><div class="code-block__label"><span>.lin</span></div><pre><code><span class="tok-kw">let</span> ket0 = ket(Qubit, 1, 0)
+<span class="tok-kw">let</span> plus = apply(H_Qubit, ket0)
+<span class="tok-kw">let</span> m    = measure(plus)        <span class="tok-com"># determinista: siempre el mismo resultado</span>
+<span class="tok-kw">let</span> hist = shots(plus, 1000)    <span class="tok-com"># ~500/500, varía cada corrida</span></code></pre></div>
+  </div>
+
+  <div class="subsection">
+  <h3 id="medicion-cuantica">density, purity, partial_trace, braket, kron</h3>
+  <div class="table-wrap"><table class="ref-table">
+    <thead><tr><th>Función</th><th>Devuelve</th><th>Qué calcula</th></tr></thead>
+    <tbody>
+      <tr><td><code>density(ψ)</code></td><td><code>DensityMatrix</code></td><td>ρ = |ψ⟩⟨ψ|</td></tr>
+      <tr><td><code>purity(ρ)</code></td><td>escalar</td><td>Tr(ρ²) — 1.0 si el estado es puro</td></tr>
+      <tr><td><code>partial_trace(ρ, subDim)</code></td><td><code>DensityMatrix</code> reducida</td><td>traza parcial sobre el subsistema de dimensión <code>subDim</code></td></tr>
+      <tr><td><code>trace_alice(ρ, bobDim)</code></td><td><code>DensityMatrix</code> reducida</td><td>traza el primer subsistema, conserva el último (convención usada en <a href="#teleportacion">teleport</a>)</td></tr>
+      <tr><td><code>braket(φ, ψ)</code></td><td>escalar (parte real)</td><td>⟨φ|ψ⟩</td></tr>
+      <tr><td><code>kron(g1, g2)</code></td><td><code>Gate</code></td><td>G1 ⊗ G2 — compone puertas de n qubits a partir de puertas más chicas</td></tr>
+    </tbody>
+  </table></div>
+  <div class="code-block"><div class="code-block__label"><span>.lin</span></div><pre><code><span class="tok-kw">let</span> rho     = density(plus)
+<span class="tok-kw">let</span> p       = purity(rho)
+<span class="tok-kw">let</span> HI      = kron(H_Qubit, I_Qubit)     <span class="tok-com"># H⊗I en un registro de 2 qubits</span></code></pre></div>
+  </div>
+
+  <div class="subsection">
+  <h3 id="teleportacion">Teleportación — <code>teleport</code></h3>
+  <div class="sig">teleport(&lt;estado&gt;)</div>
+  <p>No es un ejemplo de laboratorio — es una primitiva real del runtime. <code>teleport(psi)</code> abre un <code>QuantumChannel</code> efímero, comparte un par de Bell, corre el protocolo completo (CNOT + H + medición + corrección de Bob), y te devuelve el estado migrado — <strong>exactamente igual</strong> al original, sin haber transmitido jamás el qubit físico.</p>
+  <div class="code-block"><div class="code-block__label"><span>.lin</span></div><pre><code><span class="tok-kw">hilbert</span> Qubit: <span class="tok-kw">dim</span> 2
+<span class="tok-kw">let</span> psi = ket(Qubit, 0.6, 0.8)
+<span class="tok-kw">let</span> bob = teleport(psi)   <span class="tok-com"># bob.Amplitudes == psi.Amplitudes, exacto</span></code></pre></div>
+  <div class="out-block"><span class="out-block__label">salida</span>[✔️] bob = teleport(psi)  bits_clásicos=(m0=0, m1=0)  probs=[0.36 0.64]</div>
+  <div class="callout">
+    <svg class="callout__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    <div><strong>Por qué esto, y no simplemente copiar</strong><p>El teorema de no-clonación prohíbe duplicar un estado cuántico arbitrario desconocido. "Migrar" un qubit —a otra variable, a otro nodo— no puede ser una copia; tiene que ser teleportación, el único mecanismo físicamente consistente. Es la razón de ser de toda la <a href="#backends-dist">capa de distribución</a>. Desarrollo completo en <a href="#arquitectura">Arquitectura interna</a> y en la monografía, capítulo "Teleportación como Primitiva de Infraestructura".</p></div>
+  </div>
+  <p>Restricción: solo definida para 1 qubit (<code>dim(Espacio) == 2</code>) — intentarlo sobre un registro mayor da un error claro, no un resultado incorrecto.</p>
+  </div>
+
+  <div class="subsection">
+  <h3 id="technology">Seleccionar backend — <code>technology</code></h3>
+  <div class="sig"><span class="tok-kw">technology</span>: &lt;nombre&gt;</div>
+  <p>Cambia qué <code>QuantumBackend</code> ejecuta <code>apply</code>/<code>measure</code> de ahí en adelante. Sin esta directiva, se usa <code>LINLANG_QUANTUM_BACKEND</code> del entorno, y si tampoco está seteada, el simulador ideal.</p>
+  <div class="table-wrap"><table class="ref-table">
+    <thead><tr><th>Nombre</th><th>Backend</th><th>Detalle</th></tr></thead>
+    <tbody>
+      <tr><td><code>simulator</code> <span class="pill is-neutral">default</span></td><td><code>SimulatorBackend</code></td><td>álgebra lineal exacta, sin ruido</td></tr>
+      <tr><td><code>noisy</code></td><td><code>NoisyBackend</code></td><td>decoherencia T1/T2 + error de lectura, 1 qubit</td></tr>
+      <tr><td><code>superconductor</code> / <code>ibm</code></td><td><code>SuperconductorBackend</code></td><td>IBM Quantum real (requiere <code>IBM_QUANTUM_API_KEY</code>, <code>IBM_QUANTUM_CRN</code>)</td></tr>
+      <tr><td><code>trapped-ion</code> / <code>ionq</code></td><td><code>TrappedIonBackend</code></td><td>IonQ Cloud real (requiere <code>IONQ_API_KEY</code>)</td></tr>
+      <tr><td><code>gpu</code> / <code>cuda</code></td><td><code>CUDASimBackend</code></td><td>requiere compilar con <code>-tags cuda</code> + GPU NVIDIA</td></tr>
+    </tbody>
+  </table></div>
+  <div class="code-block"><div class="code-block__label"><span>.lin</span></div><pre><code><span class="tok-kw">technology</span>: noisy
+<span class="tok-kw">let</span> resultado = apply(X_Qubit, psi)  <span class="tok-com"># ahora con T1/T2 + error de lectura</span></code></pre></div>
+  <p>Ver <a href="#backends-dist">Backends y Distribución</a> para el detalle de cada uno y por qué <code>Apply</code>/<code>Measure</code> no tienen sentido sobre hardware real de la misma forma que sobre el simulador.</p>
+  </div>
+</section>
+
+<section class="doc-section" id="arquitectura" data-kind="infra" data-label="Arquitectura Interna">
+  <div class="eyebrow"><span class="dot" style="background:var(--ink-faint)"></span>Por debajo del capó</div>
+  <h1 class="page-title">Arquitectura interna</h1>
+  <p class="lede">Esta sección existe para que nunca tengas que decir "no sé cómo funciona mi propio lenguaje". Sin asumir que sabés Go, ni gestión manual de memoria, ni nada de eso.</p>
+
+  <div class="subsection">
+  <h3 id="ejecucion">Cómo se ejecuta un programa</h3>
+  <p>LinLang <strong>no tiene</strong> las fases que esperarías de un lenguaje "de verdad": no hay un árbol de sintaxis (AST) que se construye primero y se recorre después, no hay bytecode, no hay una pasada de "compilación" separada de la ejecución. Es un <strong>intérprete línea por línea</strong>:</p>
+  <div class="code-block"><div class="code-block__label"><span>parser/parser.go</span></div><pre><code><span class="tok-kw">func</span> (rt *Runtime) Parse(code string) {
+    <span class="tok-kw">for</span> _, line := <span class="tok-kw">range</span> strings.Split(code, <span class="tok-str">"\n"</span>) {
+        rt.ParseLine(line)
+    }
+}</code></pre></div>
+  <p><code>ParseLine</code> mira el principio de cada línea (<code>"space "</code>, <code>"let "</code>, <code>"when "</code>, ...) y despacha a la función que sabe manejar esa forma. No hay look-ahead, no hay backtracking — cada línea se procesa, produce su efecto (crear un vector, registrar un transform, imprimir algo) y se olvida. El "programa" nunca existe como una estructura de datos completa en memoria; solo existe, una línea a la vez, el <em>efecto</em> de haberlo corrido hasta ahí.</p>
+  <div class="callout">
+    <svg class="callout__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    <div><strong>Esto es lo que hace posible el REPL</strong><p>Si hubiera una fase de "parsear todo el programa primero", un REPL interactivo necesitaría lógica especial para ir completando el árbol a medida que el usuario tipea. Como no la hay — cada línea se interpreta y se olvida — el REPL es literalmente <code>ParseLine</code> llamado una vez por cada <kbd class="kbd">Enter</kbd> que presionás. Ver <a href="#repl">REPL</a>.</p></div>
+  </div>
+  </div>
+
+  <div class="subsection">
+  <h3 id="runtime-struct">El estado completo: <code>Runtime</code></h3>
+  <p>Si el intérprete no construye un AST, ¿dónde vive todo lo que el programa va creando? En un único struct de Go, <code>Runtime</code> — pensalo como "la memoria del intérprete": un conjunto de diccionarios, uno por <em>tipo</em> de cosa que un programa puede nombrar con <code>let</code>.</p>
+  <div class="code-block"><div class="code-block__label"><span>parser/parser.go (resumido)</span></div><pre><code><span class="tok-kw">type</span> Runtime <span class="tok-kw">struct</span> {
+    <span class="tok-com">// clásico</span>
+    Spaces     map[string]*core.Space
+    Vectors    map[string]*core.Vector
+    Scalars    map[string]float64
+    Transforms map[string]*core.Transform
+    LastCond   *core.Conditional
+
+    <span class="tok-com">// cuántico</span>
+    HilbertSpaces   map[string]*core.HilbertSpace
+    QuantumStates   map[string]*core.QuantumState
+    DensityMatrices map[string]*core.DensityMatrix
+    Gates           map[string]*core.Gate
+    Measurements    map[string]int
+    Histograms      map[string]map[int]int
+    Backend         core.QuantumBackend
+
+    <span class="tok-com">// persistencia</span>
+    Store       store.Backend
+    Collections map[string][]*core.Vector
+
+    <span class="tok-com">// errores y estado de bloques multi-línea (ver abajo)</span>
+    LastError  *RuntimeError
+    inTransform, inGate, inFor, inTry <span class="tok-kw">bool</span>
+    <span class="tok-com">// ...</span>
+}</code></pre></div>
+  <p>Cuando escribís <code>let p1 = Personas[25, 40000]</code>, lo que pasa literalmente es: <code>rt.Vectors["p1"] = core.NewVector(...)</code>. Un <code>space</code> va a <code>rt.Spaces</code>. Un <code>hilbert</code> va a <code>rt.HilbertSpaces</code>. No hay un namespace único compartido — <code>p1</code> en <code>Vectors</code> y <code>p1</code> en <code>Scalars</code> podrían, en teoría, coexistir sin chocar, porque cada <code>map</code> es independiente (en la práctica, el programa nunca reutiliza nombres así a propósito).</p>
+  <p><strong>No hay scoping.</strong> No hay funciones con variables locales, no hay bloques que oculten nombres — todo <code>let</code>, en cualquier parte del programa (incluso dentro de un <code>for</code> o un <code>try</code>), escribe al mismo <code>Runtime</code> global. Es un espacio de nombres plano, como una hoja de cálculo: todo lo que alguna vez nombraste con <code>let</code> sigue vivo y accesible hasta que el programa termina (o hasta que otro <code>let</code> con el mismo nombre lo pisa).</p>
+  </div>
+
+  <div class="subsection">
+  <h3 id="memoria">Gestión de memoria: no hay</h3>
+  <p>Esta es, probablemente, la pregunta que más te interesa: <strong>¿quién libera la memoria?</strong> La respuesta corta: nadie, explícitamente — y eso es correcto, no un descuido.</p>
+  <p>LinLang está escrito en Go. Go tiene <strong>garbage collector</strong> (recolector de basura): cuando creás un valor con <code>make(...)</code> o un struct literal (<code>&Vector{...}</code>), Go lo reserva en el <em>heap</em> (memoria de larga duración, no la pila de la función), y el runtime de Go lo mantiene vivo mientras <em>algo</em> lo siga referenciando. En el momento en que ya nadie tiene un puntero a ese valor, el recolector eventualmente lo libera — vos nunca llamás a algo como <code>free()</code> o <code>delete</code>.</p>
+  <div class="deflist">
+    <dt>¿Cuándo "muere" un Vector?</dt><dd>Cuando ningún mapa de <code>Runtime</code> lo referencia más. Si hacés <code>let p1 = Personas[25, 40000]</code> y después <code>let p1 = Personas[30, 50000]</code>, el primer vector deja de estar en <code>rt.Vectors["p1"]</code> (fue pisado) — si nada más lo apunta, en algún momento el GC libera esa memoria. Vos no hacés nada para que eso pase.</dd>
+    <dt>¿Y si cierro el programa?</dt><dd>El proceso termina, el sistema operativo recupera toda su memoria de un saque — igual que cualquier programa.</dd>
+    <dt>¿Hay memory leaks posibles?</dt><dd>Sí, de la única forma en que los hay en un lenguaje con GC: si algo queda referenciado sin que lo necesites más. El caso concreto en LinLang: <code>Runtime.Vectors</code> (y los demás mapas) <strong>nunca se achican solos</strong> — cada <code>let</code> nuevo agrega una entrada, y nada la borra salvo que otro <code>let</code> use el mismo nombre. Un programa muy largo con millones de <code>let</code> distintos acumula esas entradas indefinidamente. En la práctica no importa para scripts, y <code>cmd/todo-server</code> lo evita creando un <code>Runtime</code> <em>nuevo</em> por cada request HTTP (ver abajo) — el anterior, completo, queda sin referencias y el GC se lo lleva entero.</dd>
+  </div>
+  <div class="callout">
+    <svg class="callout__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    <div><strong>El patrón real: "Runtime desechable"</strong>
+    <p>Mirá <code>cmd/todo-server</code>: cada endpoint HTTP hace <code>rt := parser.NewRuntime()</code>, copia los <code>space</code>/<code>transform</code> ya declarados del schema, corre dos o tres líneas de <code>.lin</code>, lee el resultado, y termina. Ese <code>Runtime</code> entero — todos sus mapas — queda sin ninguna variable de Go apuntándolo apenas la función retorna. El próximo ciclo del recolector lo libera entero, de una vez. No hay "limpieza" explícita en ningún lado del código — es la consecuencia natural de no guardar el puntero en ningún lado que sobreviva al request.</p></div>
+  </div>
+  <p><strong>Inmutabilidad por convención, no por el lenguaje.</strong> Nada impide, en Go, mutar un <code>Vector.Values[0] = 99</code> directamente. Pero ninguna función del lenguaje lo hace: <code>Add</code>, <code>Scale</code>, <code>Project</code>, la aplicación de un <code>transform</code> — todas construyen un <code>[]float64</code> nuevo con <code>make</code> y devuelven un <code>*Vector</code> nuevo. Es una disciplina que el código respeta, útil para razonar sobre el programa (un vector, una vez creado, no cambia bajo vos) — pero no es una garantía que el compilador de Go imponga.</p>
+  </div>
+
+  <div class="subsection">
+  <h3 id="estructuras-datos">Las estructuras de datos centrales</h3>
+  <p>Cinco structs cargan con casi todo el peso semántico del lenguaje. Ninguno tiene métodos "mágicos" — son datos simples con funciones que operan sobre ellos (el estilo idiomático de Go, muy distinto a una clase con comportamiento encapsulado).</p>
+
+  <h4><code>core.Vector</code> — una entidad clásica</h4>
+  <div class="code-block"><div class="code-block__label"><span>core/vectors.go</span></div><pre><code><span class="tok-kw">type</span> Vector <span class="tok-kw">struct</span> {
+    ID      int64              <span class="tok-com">// autoincremental, global al proceso</span>
+    Space   *Space             <span class="tok-com">// puntero: NO copia el espacio, lo referencia</span>
+    Values  []float64          <span class="tok-com">// slice — ver nota abajo</span>
+    Strings map[string]string  <span class="tok-com">// solo dimensiones String; nil si no hay ninguna</span>
+}</code></pre></div>
+  <p><code>Values</code> es un <em>slice</em> de Go, no un array fijo — una cabecera liviana (puntero + largo + capacidad) que apunta a un bloque de memoria contiguo en el heap. Dos vectores nunca comparten el mismo slice subyacente (cada operación que "modifica" un vector hace <code>make([]float64, ...)</code> nuevo), así que es seguro pasarlos entre funciones sin miedo a que una mutación en un lugar aparezca inesperadamente en otro.</p>
+
+  <h4><code>core.Space</code> — un tipo, como lista de dimensiones</h4>
+  <div class="code-block"><div class="code-block__label"><span>core/spaces.go</span></div><pre><code><span class="tok-kw">type</span> Space <span class="tok-kw">struct</span> {
+    Name       string
+    Dimensions []string
+    Types      []DimType  <span class="tok-com">// paralelo a Dimensions, por índice</span>
+}</code></pre></div>
+  <p>Notá que <code>Dimensions</code> y <code>Types</code> son dos slices paralelos — <code>Types[i]</code> describe <code>Dimensions[i]</code>. Es una técnica común en Go cuando no hace falta un tercer struct "Dimension" con dos campos: más liviano, una asignación de memoria menos.</p>
+
+  <h4><code>core.QuantumState</code> y <code>core.Gate</code> — la versión compleja</h4>
+  <div class="code-block"><div class="code-block__label"><span>core/hilbert.go, core/gates.go</span></div><pre><code><span class="tok-kw">type</span> QuantumState <span class="tok-kw">struct</span> {
+    Space      *HilbertSpace
+    Amplitudes []complex128   <span class="tok-com">// Go tiene números complejos nativos</span>
+}
+
+<span class="tok-kw">type</span> Gate <span class="tok-kw">struct</span> {
+    Name     string
+    Domain   *HilbertSpace
+    Codomain *HilbertSpace
+    Matrix   [][]complex128   <span class="tok-com">// fila por fila — slice de slices</span>
+}</code></pre></div>
+  <p><code>complex128</code> es un tipo nativo de Go (como <code>float64</code>, pero con parte real e imaginaria) — no hace falta ninguna librería externa para álgebra compleja básica. <code>Matrix</code> es un slice de slices: <code>Matrix[i]</code> es la fila <code>i</code>, cada una su propio slice independiente — no una matriz "plana" de una sola asignación. Para los tamaños que maneja el simulador (hasta unos pocos miles de amplitudes antes de que <code>Gate.Apply</code> se vuelva el cuello de botella — ver <a href="#tabla-keywords">Referencia rápida</a>), esto es simple y suficientemente rápido.</p>
+
+  <h4><code>core.DensityMatrix</code></h4>
+  <p>Misma forma que <code>Gate</code> (una matriz <code>n×n</code> de <code>complex128</code>) pero semánticamente distinta: no es un operador que se "aplica", es un estado (posiblemente mixto). <code>Trace()</code>, <code>Purity()</code>, <code>PartialTrace(subDim)</code> son sus operaciones propias.</p>
+  </div>
+
+  <div class="subsection">
+  <h3 id="bloques-multilinea">Cómo funcionan los bloques con llaves</h3>
+  <p><code>transform</code>, <code>gate</code>, <code>for</code> y <code>try</code> son las únicas construcciones que abarcan más de una línea. Como el intérprete procesa línea por línea y nunca mira "hacia adelante", necesitan una forma de <em>recordar</em> en qué bloque están mientras acumulan las líneas intermedias. La solución es un par de banderas booleanas por tipo de bloque, más un struct "pendiente" que va juntando las líneas:</p>
+  <div class="code-block"><div class="code-block__label"><span>parser/parser.go</span></div><pre><code><span class="tok-kw">type</span> Runtime <span class="tok-kw">struct</span> {
+    <span class="tok-com">// ...</span>
+    inTransform <span class="tok-kw">bool</span>
+    pendingTx   *pendingTransform
+
+    inGate      <span class="tok-kw">bool</span>
+    pendingGate *pendingGateDecl
+
+    inFor       <span class="tok-kw">bool</span>
+    pendingFor  *pendingForLoop
+
+    inTry, awaitingCatch, inCatch <span class="tok-kw">bool</span>
+    pendingTry  *pendingTryBlock
+}</code></pre></div>
+  <p>El flujo, para <code>transform</code> como ejemplo: la línea <code>transform nombre: A x B -> C {</code> pone <code>inTransform = true</code> y crea un <code>pendingTx</code> vacío. Cada línea siguiente, mientras <code>inTransform</code> sea <code>true</code>, <strong>no</strong> pasa por el switch normal de sentencias — <code>ParseLine</code> la intercepta primero y la agrega a <code>pendingTx.mappings</code>. La línea <code>}</code> dispara <code>finalizeTransform()</code>, que arma el <code>core.Transform</code> final a partir de todo lo acumulado y lo registra en <code>rt.Transforms</code>, y recién ahí vuelve <code>inTransform = false</code>.</p>
+  <p>Es el mismo patrón, cuatro veces, con datos distintos en el struct "pendiente". Y es exactamente este diseño el que hace que <strong>escribir un <code>transform</code> a lo largo de varias líneas del REPL funcione sin código adicional</strong>: cada <kbd class="kbd">Enter</kbd> es una llamada más a <code>ParseLine</code>, y el estado <code>inTransform</code>/<code>pendingTx</code> sobrevive entre llamadas porque vive en el mismo <code>Runtime</code> de siempre, no en una variable local que se perdería.</p>
+  <div class="callout is-warm">
+    <svg class="callout__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>
+    <div><strong>La limitación que esto trae</strong><p>Como cada tipo de bloque solo rastrea <em>su propio</em> par de llaves, ninguno sabe anidar <em>otro</em> bloque adentro — un <code>for</code> no puede contener un <code>gate { ... }</code>, por ejemplo. El cuerpo de un bloque es una lista plana de líneas, no un árbol.</p></div>
+  </div>
+  </div>
+</section>
+
+<section class="doc-section" id="backends-dist" data-kind="quantum" data-label="Backends y Distribución">
+  <div class="eyebrow"><span class="dot"></span>Hardware y runtime distribuido</div>
+  <h1 class="page-title">Backends y distribución</h1>
+  <p class="lede">Del simulador ideal a hardware cuántico real, pasando por GPU, y de un solo proceso a un clúster de Kubernetes migrando qubits entre nodos por teleportación.</p>
+
+  <div class="subsection">
+  <h3 id="quantumbackend-interfaz">La interfaz <code>QuantumBackend</code></h3>
+  <p>Todo lo que ejecuta <code>apply</code>/<code>measure</code> implementa esta interfaz chica — el mismo rol que <code>store.Backend</code> cumple para persistencia, pero para QPUs:</p>
+  <div class="code-block"><div class="code-block__label"><span>core/backend.go</span></div><pre><code><span class="tok-kw">type</span> QuantumBackend <span class="tok-kw">interface</span> {
+    Name() string
+    Apply(gate *Gate, state *QuantumState) (*QuantumState, <span class="tok-kw">error</span>)
+    Measure(state *QuantumState) (outcome <span class="tok-kw">int</span>, probs []float64, err <span class="tok-kw">error</span>)
+    SupportedGates() []string
+    Topology() Topology
+    NoiseModel() NoiseModel
+}</code></pre></div>
+  <div class="callout is-warm">
+    <svg class="callout__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>
+    <div><strong>Por qué el hardware real no "aplica" estados</strong>
+    <p><code>Apply</code> recibe un vector de amplitudes arbitrario como entrada. Eso tiene sentido para un simulador — es solo un array en RAM — pero <strong>ningún QPU real puede hacer eso</strong>: no existe forma física de "cargar" un vector de amplitudes arbitrario en qubits reales. Un QPU real solo sabe correr un circuito completo desde <code>|0...0⟩</code> y devolver bits clásicos. Por eso <code>SuperconductorBackend</code> y <code>TrappedIonBackend</code> implementan <code>QuantumBackend</code> (así tipan correctamente y reportan su topología/ruido reales) pero <code>Apply</code>/<code>Measure</code> directamente devuelven un error — el camino real es la interfaz <code>CircuitRunner</code>, con un método <code>Run(circuit, shots)</code> que sí corre un circuito completo. Es una distinción que vale la pena entender: no es una limitación del código, es una limitación de la física.</p></div>
+  </div>
+  </div>
+
+  <div class="subsection">
+  <h3 id="backends-simulados">Simuladores: ideal, con ruido, GPU</h3>
+  <div class="table-wrap"><table class="ref-table">
+    <thead><tr><th>Backend</th><th><code>technology:</code></th><th>Qué hace</th></tr></thead>
+    <tbody>
+      <tr><td><code>SimulatorBackend</code></td><td><code>simulator</code></td><td>producto matriz-vector exacto, sin ruido — la implementación de referencia</td></tr>
+      <tr><td><code>NoisyBackend</code></td><td><code>noisy</code></td><td>envuelve al simulador: antes de medir, aplica los canales de Kraus de amplitude damping (T1) y phase damping (T2), después invierte cada bit de lectura con probabilidad <code>ReadoutError</code> — 1 qubit solamente</td></tr>
+      <tr><td><code>CUDASimBackend</code></td><td><code>gpu</code> / <code>cuda</code></td><td>mismo álgebra, corrida en GPU vía bindings cgo a cuStateVec de NVIDIA — requiere compilar con <code>-tags cuda</code> en una máquina con GPU; <strong>no compilado ni probado en este entorno</strong>, por no tener GPU disponible</td></tr>
+      <tr><td><code>MultiGPUBackend</code></td><td>— (API de Go directa, no por <code>technology:</code>)</td><td>reparte el vector de estado entre varias GPUs vía NCCL para sistemas &gt;40 qubits; solo el primitivo de intercambio entre GPUs está implementado, no la aplicación de una puerta arbitraria — ver el comentario de alcance en <code>core/multi_gpu_backend.go</code></td></tr>
+    </tbody>
+  </table></div>
+  </div>
+
+  <div class="subsection">
+  <h3 id="backends-reales">Hardware real: IBM y IonQ</h3>
+  <p>Clientes HTTP reales, no simulaciones disfrazadas — auth real, endpoints reales, verificados contra servidores mock en los tests de este repo.</p>
+  <div class="table-wrap"><table class="ref-table">
+    <thead><tr><th>Backend</th><th>Proveedor</th><th>Autenticación</th><th>Variables de entorno</th></tr></thead>
+    <tbody>
+      <tr><td><code>SuperconductorBackend</code></td><td>IBM Quantum (Qiskit Runtime)</td><td>IBM Cloud IAM → bearer token</td><td><code>IBM_QUANTUM_API_KEY</code>, <code>IBM_QUANTUM_CRN</code>, <code>IBM_QUANTUM_BACKEND</code> (opcional)</td></tr>
+      <tr><td><code>TrappedIonBackend</code></td><td>IonQ Cloud</td><td><code>Authorization: apiKey ...</code></td><td><code>IONQ_API_KEY</code>, <code>IONQ_TARGET</code> (opcional)</td></tr>
+    </tbody>
+  </table></div>
+  <p>Sin la variable de entorno correspondiente, <code>technology: ibm</code> falla con un mensaje claro en vez de simular algo silenciosamente. Ambos implementan <code>CircuitRunner.Run(circuit, shots)</code>: serializan el <code>QIRCircuit</code> (OpenQASM 2.0 para IBM, el formato nativo <code>ionq.circuit.v0</code> para IonQ), lo envían, sondean el estado del job, y traen de vuelta un histograma de conteos.</p>
+  <div class="callout">
+    <svg class="callout__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    <div><strong>Quién no está, y por qué</strong><p>QuEra (Aquila) quedó deliberadamente fuera: es un dispositivo de <em>simulación Hamiltoniana analógica</em> (pulsos sobre átomos de Rydberg), no de puertas digitales — traducir un circuito de LinLang/Q a su formato requeriría un compilador puerta-a-pulso, un problema de investigación aparte. Ver la Hoja de Ruta de la monografía para el detalle completo de esta decisión.</p></div>
+  </div>
+  </div>
+
+  <div class="subsection">
+  <h3 id="qir">Compilación: QIR, optimización, ruteo</h3>
+  <p>Entre el circuito que escribís y el backend que lo ejecuta hay una representación intermedia — un DAG (grafo acíclico dirigido) de puertas, donde la dependencia entre dos nodos existe solo si tocan el mismo qubit:</p>
+  <div class="code-block"><div class="code-block__label"><span>core/qir.go</span></div><pre><code><span class="tok-kw">type</span> QIRNode <span class="tok-kw">struct</span> {
+    ID     <span class="tok-kw">int</span>
+    Gate   *Gate
+    Qubits []<span class="tok-kw">int</span>
+    Deps   []*QIRNode  <span class="tok-com">// nodos que deben ejecutar antes</span>
+}
+
+<span class="tok-kw">type</span> QIRCircuit <span class="tok-kw">struct</span> {
+    NumQubits <span class="tok-kw">int</span>
+    Nodes     []*QIRNode
+}</code></pre></div>
+  <p>Dos puertas sobre qubits distintos son nodos independientes — el DAG es lo que permite que <code>OptimizeCircuit</code> y <code>RouteCircuit</code> razonen sobre qué se puede reordenar o combinar sin romper la semántica del circuito.</p>
+  <div class="deflist">
+    <dt>OptimizeCircuit</dt><dd>fusiona puertas adyacentes sobre el mismo qubit por multiplicación de matrices, y descarta pares que se cancelan (su producto da la identidad salvo fase global) — esto cubre <code>H²=I</code>, <code>X²=I</code>, etc. sin casos especiales por nombre de puerta.</dd>
+    <dt>RouteCircuit</dt><dd>inserta puertas <code>SWAP</code> cuando una puerta de 2 qubits cae sobre posiciones físicas no adyacentes, según la <code>Topology</code> del backend — heurística voraz (BFS del camino más corto), no el mínimo global de SWAPs (ese mínimo es NP-hard).</dd>
+  </div>
+  </div>
+
+  <div class="subsection">
+  <h3 id="distribucion-primitivas">Primitivas de distribución</h3>
+  <p>Cuatro piezas que, combinadas, hacen que "migrar un qubit a otra máquina" sea una llamada de runtime y no un proyecto de investigación aparte.</p>
+
+  <h4><code>QuantumChannel</code></h4>
+  <div class="code-block"><div class="code-block__label"><span>core/channel.go</span></div><pre><code><span class="tok-kw">type</span> QuantumChannel <span class="tok-kw">interface</span> {
+    NodeA() string
+    NodeB() string
+    ShareBellPair() (*BellPair, <span class="tok-kw">error</span>)
+    SendClassical(from string, bits []<span class="tok-kw">int</span>) <span class="tok-kw">error</span>
+    RecvClassical(to string) ([]<span class="tok-kw">int</span>, <span class="tok-kw">error</span>)
+}</code></pre></div>
+  <p><code>LocalChannel</code> es la implementación de referencia — ambos extremos en el mismo proceso, análoga a <code>MemoryStore</code> para persistencia.</p>
+
+  <h4><code>BellPool</code></h4>
+  <p>Envuelve un <code>QuantumChannel</code> y pre-genera pares de Bell en un buffer, para que <code>teleport</code> no pague el costo de generación en el camino crítico. Implementa <code>QuantumChannel</code> él mismo — <code>Teleport(psi, pool)</code> funciona sin ningún cambio.</p>
+
+  <h4><code>HilbertRegistry</code></h4>
+  <p>El directorio de quién-tiene-qué: qué <code>NodeID</code> posee actualmente cada espacio de Hilbert nombrado. <code>Register</code>, <code>Owner</code>, <code>Transfer</code>, <code>Local(nombre, nodo)</code> — la pregunta que cualquier operación debe responder antes de decidir si corre localmente o necesita un <code>QuantumChannel</code>.</p>
+
+  <h4><code>ScheduleCircuit</code></h4>
+  <div class="sig">ScheduleCircuit(circuit, ownerOf, cluster) → []TeleportStep</div>
+  <p>El análogo distribuido de <code>RouteCircuit</code>, con <code>teleport</code> en el rol de <code>SWAP</code> — nunca puede ser <code>SWAP</code>, porque el no-clonación prohíbe mover un qubit entre nodos de cualquier otra forma. Para cada puerta de 2 qubits cuyos operandos viven en nodos distintos, inserta la teleportación necesaria.</p>
+  </div>
+
+  <div class="subsection">
+  <h3 id="quantum-node">Cada contenedor, un QPU — <code>quantum-node</code></h3>
+  <p>Un servicio gRPC real (<code>cmd/quantum-node</code>, definido en <code>proto/quantumnode/quantumnode.proto</code>) que envuelve un <code>QuantumBackend</code> local y lo expone por red: <code>Apply</code>, <code>Measure</code>, <code>Info</code>. <code>core.RemoteBackend</code> es el cliente — implementa <code>QuantumBackend</code> hablando ese protocolo, así que un scheduler distribuido puede tratar un contenedor remoto exactamente igual que un backend local.</p>
+  <div class="code-block"><div class="code-block__label"><span>bash</span></div><pre><code>docker build -f Dockerfile.quantum-node -t linlang-quantum-node .
+docker run -p 50051:50051 linlang-quantum-node</code></pre></div>
+  <div class="code-block"><div class="code-block__label"><span>go</span></div><pre><code>remote, _ := core.NewRemoteBackend(<span class="tok-str">"localhost:50051"</span>)
+resultado, _ := remote.Apply(gate, estado)  <span class="tok-com">// corre dentro del contenedor</span></code></pre></div>
+  </div>
+
+  <div class="subsection">
+  <h3 id="k8s-operator">Operator de Kubernetes</h3>
+  <p>Un CRD <code>HilbertSpace</code> real, con un controlador que reconcilia cada recurso en un <code>Deployment</code>+<code>Service</code> de pods <code>quantum-node</code>:</p>
+  <div class="code-block"><div class="code-block__label"><span>kubectl apply</span></div><pre><code><span class="tok-kw">apiVersion</span>: linlang.dev/v1alpha1
+<span class="tok-kw">kind</span>: HilbertSpace
+<span class="tok-kw">metadata</span>:
+  <span class="tok-kw">name</span>: qubit-alice
+<span class="tok-kw">spec</span>:
+  <span class="tok-kw">dim</span>: 2
+  <span class="tok-kw">technology</span>: simulator
+  <span class="tok-kw">replicas</span>: 1</code></pre></div>
+  <div class="out-block"><span class="out-block__label">kubectl get hilbertspaces</span>NAME          DIM   TECHNOLOGY   REPLICAS   READY   PHASE
+qubit-alice   2     simulator    1          1       Ready</div>
+  <p>Esto no quedó en diseño de papel: se verificó contra un clúster <code>kind</code> real — CRD aplicado, operador corriendo, pod llegando a <code>Running</code>, y un cómputo cuántico real ejecutado a través del <code>Service</code> que el operador creó.</p>
+  </div>
+</section>
+
+<section class="doc-section" id="herramientas" data-kind="infra" data-label="Herramientas">
+  <div class="eyebrow"><span class="dot" style="background:var(--ink-faint)"></span>Alrededor del lenguaje</div>
+  <h1 class="page-title">Herramientas</h1>
+
+  <div class="subsection">
+  <h3 id="lsp">Language Server Protocol</h3>
+  <p><code>cmd/lsp</code> habla LSP de verdad sobre stdio — framing JSON-RPC 2.0 propio, sin librería externa. Dos capacidades: diagnósticos y hover.</p>
+  <p>Los diagnósticos no reimplementan un analizador aparte: corren el documento por un <code>Runtime</code> real, línea por línea, capturando lo que cada línea imprime — una línea <code>[❌]</code> se convierte en un diagnóstico de error atribuido exactamente a esa línea fuente. El hover resuelve el identificador bajo el cursor contra los namespaces del documento (espacios, transforms, vectores, gates).</p>
+  <div class="code-block"><div class="code-block__label"><span>bash</span></div><pre><code>go run ./cmd/lsp/
+<span class="tok-com"># habla JSON-RPC sobre stdin/stdout — cualquier editor que entienda LSP lo puede usar</span></code></pre></div>
+  </div>
+
+  <div class="subsection">
+  <h3 id="cicd">CI/CD</h3>
+  <p><code>.github/workflows/ci.yml</code> corre en cada push y pull request: <code>go build</code>, <code>go vet</code>, un gate de <code>gofmt -l</code> que falla si algo no está formateado, <code>go test ./... -race</code>, y un job separado que construye <code>Dockerfile</code> y <code>Dockerfile.quantum-node</code> para <code>linux/amd64</code> y <code>linux/arm64</code> (sin publicar — solo verifica que compile en ambas arquitecturas).</p>
+  </div>
+</section>
+
+<section class="doc-section" id="referencia" data-kind="infra" data-label="Referencia Rápida">
+  <div class="eyebrow"><span class="dot" style="background:var(--ink-faint)"></span>Cheat sheet</div>
+  <h1 class="page-title">Referencia rápida</h1>
+  <p class="lede">Todas las palabras clave y funciones integradas, en una tabla. Para el detalle de cada una, los links llevan a su sección.</p>
+
+  <div class="subsection">
+  <h3 id="tabla-keywords">Palabras clave</h3>
+  <div class="table-wrap"><table class="ref-table">
+    <thead><tr><th>Keyword</th><th>Sintaxis</th><th>Sección</th></tr></thead>
+    <tbody>
+      <tr><td><code>space</code></td><td><code>space N: d: T, ...</code></td><td><a href="#espacios">Espacios</a></td></tr>
+      <tr><td><code>let</code></td><td><code>let x = expr</code></td><td><a href="#vectores">Vectores</a></td></tr>
+      <tr><td><code>transform</code></td><td><code>transform N: A x B -> C { ... }</code></td><td><a href="#transforms">Transforms</a></td></tr>
+      <tr><td><code>func</code></td><td><code>func N: A -> B { ... }</code></td><td><a href="#funciones">Funciones</a></td></tr>
+      <tr><td><code>when</code></td><td><code>when lhs op val:</code></td><td><a href="#condicionales">Condicionales</a></td></tr>
+      <tr><td><code>for</code></td><td><code>for v in coleccion { ... }</code></td><td><a href="#colecciones">Colecciones</a></td></tr>
+      <tr><td><code>try</code> / <code>catch</code></td><td><code>try { } catch N { }</code></td><td><a href="#errores">Errores</a></td></tr>
+      <tr><td><code>print</code></td><td><code>print x</code></td><td>—</td></tr>
+      <tr><td><code>persist</code> / <code>drop</code></td><td><code>persist x</code> / <code>drop x</code></td><td><a href="#persist-query">Persistencia</a></td></tr>
+      <tr><td><code>query</code> / <code>query_one</code></td><td><code>let x = query E where ...</code></td><td><a href="#persist-query">Persistencia</a></td></tr>
+      <tr><td><code>include</code></td><td><code>include "archivo.lin"</code></td><td><a href="#modulos">Módulos</a></td></tr>
+      <tr><td><code>project ... onto</code></td><td><code>project v onto E</code></td><td><a href="#operaciones-nativas">Operaciones nativas</a></td></tr>
+      <tr><td><code>hilbert</code></td><td><code>hilbert N: dim n</code></td><td><a href="#hilbert-spaces">Hilbert</a></td></tr>
+      <tr><td><code>gate</code></td><td><code>gate N: A -> B { row [...] }</code></td><td><a href="#puertas">Puertas</a></td></tr>
+      <tr><td><code>technology</code></td><td><code>technology: nombre</code></td><td><a href="#technology">Technology</a></td></tr>
+    </tbody>
+  </table></div>
+  </div>
+
+  <div class="subsection">
+  <h3 id="tabla-builtins-clasicos">Funciones clásicas</h3>
+  <div class="table-wrap"><table class="ref-table">
+    <thead><tr><th>Función</th><th>Devuelve</th></tr></thead>
+    <tbody>
+      <tr><td><code>add(v1, v2)</code></td><td>Vector</td></tr>
+      <tr><td><code>scale(v, k)</code></td><td>Vector</td></tr>
+      <tr><td><code>dot(v1, v2)</code></td><td>Escalar</td></tr>
+      <tr><td><code>norm(v)</code></td><td>Escalar</td></tr>
+      <tr><td><code>filter(coleccion, cond)</code></td><td>Colección</td></tr>
+      <tr><td><code>map(coleccion, transform, v)</code></td><td>Colección</td></tr>
+      <tr><td><code>coleccion[i]</code></td><td>Vector</td></tr>
+    </tbody>
+  </table></div>
+  </div>
+
+  <div class="subsection">
+  <h3 id="tabla-builtins-cuanticos">Funciones cuánticas</h3>
+  <div class="table-wrap"><table class="ref-table">
+    <thead><tr><th>Función</th><th>Devuelve</th></tr></thead>
+    <tbody>
+      <tr><td><code>ket(H, amps...)</code></td><td>QuantumState</td></tr>
+      <tr><td><code>apply(gate, ψ)</code></td><td>QuantumState</td></tr>
+      <tr><td><code>tensor(ψ1, ψ2)</code></td><td>QuantumState</td></tr>
+      <tr><td><code>measure(ψ)</code></td><td>Int (determinista)</td></tr>
+      <tr><td><code>shots(ψ, n)</code></td><td>Histograma</td></tr>
+      <tr><td><code>density(ψ)</code></td><td>DensityMatrix</td></tr>
+      <tr><td><code>purity(ρ)</code></td><td>Escalar</td></tr>
+      <tr><td><code>partial_trace(ρ, d)</code></td><td>DensityMatrix</td></tr>
+      <tr><td><code>trace_alice(ρ, d)</code></td><td>DensityMatrix</td></tr>
+      <tr><td><code>braket(φ, ψ)</code></td><td>Escalar</td></tr>
+      <tr><td><code>kron(g1, g2)</code></td><td>Gate</td></tr>
+      <tr><td><code>teleport(ψ)</code></td><td>QuantumState</td></tr>
+    </tbody>
+  </table></div>
+  </div>
+
+  <div class="toc-footer">
+    <a href="#empezando"><span class="dir">Volver al principio</span><span>Empezando</span></a>
+    <a href="https://github.com/Bulldrill/Linglang" class="next"><span class="dir">Código fuente</span><span>github.com/Bulldrill/Linglang →</span></a>
+  </div>
+</section>
+
+<!-- CONTENT_END -->
+    </div>
+  </div>
+</div>
+<div class="scrim" id="scrim"></div>
+
+<script>
+(function(){
+  // Build nav from doc-sections + their h2/h3 once content exists.
+  var content = document.getElementById('content');
+  var navRoot = document.getElementById('sidebarNav');
+
+  function buildNav(){
+    var groups = content.querySelectorAll(':scope > section.doc-section');
+    var html = '';
+    groups.forEach(function(sec){
+      var kind = sec.getAttribute('data-kind') || 'infra';
+      var label = sec.getAttribute('data-label') || '';
+      html += '<div class="navgroup" data-group="'+sec.id+'">';
+      html += '<div class="navgroup__title"><span class="navgroup__dot is-'+kind+'"></span>'+label+'</div>';
+      var items = sec.querySelectorAll(':scope > h2[id], :scope > .subsection > h3[id]');
+      sec.querySelectorAll(':scope .subsection').forEach(function(sub){
+        var h = sub.querySelector(':scope > h3[id]');
+        if(h){
+          html += '<a class="navlink" data-text="'+h.textContent.toLowerCase()+'" href="#'+h.id+'">'+h.textContent+'</a>';
+        }
+      });
+      html += '</div>';
+    });
+    navRoot.innerHTML = html;
+  }
+  buildNav();
+
+  // Scroll-spy
+  var links = Array.prototype.slice.call(document.querySelectorAll('.navlink'));
+  var targets = links.map(function(l){ return document.getElementById(l.getAttribute('href').slice(1)); }).filter(Boolean);
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting){
+        links.forEach(function(l){ l.classList.remove('is-active'); });
+        var id = e.target.id;
+        var link = links.find(function(l){ return l.getAttribute('href') === '#'+id; });
+        if(link) link.classList.add('is-active');
+      }
+    });
+  }, {rootMargin:'-10% 0px -75% 0px'});
+  targets.forEach(function(t){ io.observe(t); });
+
+  // Search filter
+  var search = document.getElementById('navSearch');
+  search.addEventListener('input', function(){
+    var q = search.value.trim().toLowerCase();
+    document.querySelectorAll('.navgroup').forEach(function(group){
+      var anyVisible = false;
+      group.querySelectorAll('.navlink').forEach(function(link){
+        var match = !q || link.getAttribute('data-text').indexOf(q) !== -1;
+        link.classList.toggle('is-hidden', !match);
+        if(match) anyVisible = true;
+      });
+      group.classList.toggle('is-hidden', !anyVisible);
+    });
+  });
+
+  // Mobile sidebar toggle
+  var sidebar = document.getElementById('sidebar');
+  var scrim = document.getElementById('scrim');
+  var burger = document.getElementById('burger');
+  function closeSidebar(){ sidebar.classList.remove('is-open'); scrim.classList.remove('is-open'); }
+  burger.addEventListener('click', function(){
+    sidebar.classList.toggle('is-open'); scrim.classList.toggle('is-open');
+  });
+  scrim.addEventListener('click', closeSidebar);
+  links.forEach(function(l){ l.addEventListener('click', closeSidebar); });
+})();
+</script>
