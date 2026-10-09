@@ -325,11 +325,40 @@ func (rt *Runtime) parseLet(line string) {
 		rt.parseFuncCall(varName, rhs)
 
 	case strings.Contains(rhs, "["):
-		rt.parseVectorLiteral(varName, rhs)
+		// Disambiguate SpaceName[v1, v2, ...] (vector literal) from
+		// collection[idx] (indexing, issue #27): a bracketed name is an
+		// index expression only if that name is an already-loaded
+		// collection, never a declared space.
+		name := strings.TrimSpace(rhs[:strings.Index(rhs, "[")])
+		if _, ok := rt.Collections[name]; ok {
+			rt.parseCollectionIndex(varName, name, rhs)
+		} else {
+			rt.parseVectorLiteral(varName, rhs)
+		}
 
 	default:
 		fmt.Printf("[⚠️] let %s: expresión no reconocida: %s\n", varName, rhs)
 	}
+}
+
+// Collection indexing: let x = collection[idx]  (issue #27)
+func (rt *Runtime) parseCollectionIndex(varName, collName, rhs string) {
+	openIdx := strings.Index(rhs, "[")
+	closeIdx := strings.Index(rhs, "]")
+	idxStr := strings.TrimSpace(rhs[openIdx+1 : closeIdx])
+
+	idx, err := strconv.Atoi(idxStr)
+	if err != nil {
+		fmt.Printf("[❌] %s[%s]: índice no numérico\n", collName, idxStr)
+		return
+	}
+	coll := rt.Collections[collName]
+	if idx < 0 || idx >= len(coll) {
+		fmt.Printf("[❌] %s[%d]: fuera de rango (len=%d)\n", collName, idx, len(coll))
+		return
+	}
+	rt.Vectors[varName] = coll[idx]
+	fmt.Printf("[✔️] %s = %s[%d]  →  %v\n", varName, collName, idx, coll[idx].Display())
 }
 
 // Vector literal: SpaceName[v1, v2, ...]

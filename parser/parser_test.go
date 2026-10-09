@@ -145,3 +145,40 @@ for t in todas {
 		t.Fatalf("expected 2 vectors queried, got %d", len(seenPriorities))
 	}
 }
+
+func TestCollectionIndexing(t *testing.T) {
+	rt := NewRuntime()
+	rt.SetStore(store.NewMemoryStore())
+	rt.Parse(`
+space Tarea: id: Real, prioridad: Real
+let t1 = Tarea[1, 3]
+let t2 = Tarea[2, 5]
+persist t1
+persist t2
+let results = query Tarea
+let primero = results[0]
+`)
+	v := rt.Vectors["primero"]
+	if v == nil {
+		t.Fatal("expected 'primero' to be bound from results[0]")
+	}
+	results := rt.Collections["results"]
+	if v != results[0] {
+		t.Fatal("expected results[0] indexing to reference the same vector as the collection")
+	}
+}
+
+func TestCollectionIndexingOutOfRangeDoesNotPanic(t *testing.T) {
+	rt := NewRuntime()
+	rt.SetStore(store.NewMemoryStore())
+	rt.Parse(`
+space Tarea: id: Real
+let t1 = Tarea[1]
+persist t1
+let results = query Tarea
+let fuera = results[99]
+`)
+	if _, ok := rt.Vectors["fuera"]; ok {
+		t.Fatal("expected no binding for an out-of-range index")
+	}
+}
