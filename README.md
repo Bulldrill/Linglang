@@ -1,23 +1,34 @@
 # LinLang 🧮
 
-> Un lenguaje de programación algebraico basado en espacios vectoriales, con extensión de computación cuántica y persistencia transparente.
+[![CI](https://github.com/Bulldrill/Linglang/actions/workflows/ci.yml/badge.svg)](https://github.com/Bulldrill/Linglang/actions/workflows/ci.yml)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
-LinLang modela cada dominio de datos como un **espacio vectorial**, cada entidad como un **vector** y cada relación como una **transformación algebraica**. El mismo archivo `.lin` se ejecuta sin modificación sobre SQLite, Redis, Docker o (en la hoja de ruta) backends cuánticos reales.
+> Un lenguaje de programación algebraico basado en espacios vectoriales, con extensión de computación cuántica, distribución de qubits por teleportación, y persistencia transparente.
+
+LinLang modela cada dominio de datos como un **espacio vectorial**, cada entidad como un **vector** y cada relación como una **transformación algebraica**. El mismo modelo se extiende, sin cambiar de lenguaje, a espacios de Hilbert sobre ℂ — un qubit es un vector como cualquier otro. El mismo archivo `.lin` se ejecuta sin modificación sobre SQLite, Redis, Docker, un clúster de Kubernetes, o backends cuánticos reales (IBM, IonQ).
+
+📖 **[Referencia completa del lenguaje](https://bulldrill.github.io/Linglang/)** — sintaxis, modelo de memoria, extensión cuántica y runtime distribuido, en un sitio navegable.
 
 ---
 
 ## Características
 
+Las 5 épicas del backlog original (49 issues) están **completas**:
+
 | Módulo | Estado | Descripción |
 |--------|--------|-------------|
-| Núcleo algebraico | ✅ | `space`, `let`, `transform`, `when`, `print`, operaciones vectoriales |
+| Núcleo algebraico | ✅ | `space` (tipado `Real`/`String`, inferencia), `let`, `transform`, `func`, `when`, `for`/`filter`/`map`, `try`/`catch`, `include`, REPL |
 | Operaciones nativas | ✅ | `add`, `scale`, `dot`, `norm`, `project` |
-| Extensión cuántica (LinLang/Q) | ✅ | `hilbert`, `gate`, `ket`, `apply`, `tensor`, `measure`, `density`, `partial_trace`, `kron` |
-| Persistencia transparente | ✅ | `persist`, `drop`, `query`, `query_one` — SQLite y Redis |
+| Extensión cuántica (LinLang/Q) | ✅ | `hilbert`, `gate`, `ket`, `apply`, `tensor`, `measure`, `shots`, `density`, `partial_trace`, `kron`, `teleport`, `technology` |
+| Backends cuánticos reales | ✅ | IBM Quantum y IonQ (clientes HTTP reales), GPU/CUDA, simulador con ruido T1/T2 |
+| Compilación de circuitos | ✅ | QIR (DAG intermedio), optimizador algebraico, ruteo topológico de SWAP |
+| Distribución de qubits | ✅ | `QuantumChannel`, teleportación como primitiva de infraestructura, scheduler, nodo gRPC, operator de Kubernetes |
+| Persistencia transparente | ✅ | `persist`, `drop`, `query` (multi-condición `and`/`or`), `query_one` — memoria, SQLite y Redis |
 | Backend TODO REST | ✅ | 10 endpoints HTTP completamente dirigidos por el runtime LinLang |
-| Docker Compose | ✅ | Todo-server + Redis con un solo comando |
-| Simulador de tecnología cuántica | 🗺️ | Backlog v2.0 |
-| Distribución de qubits | 🗺️ | Backlog v3.0 |
+| Herramientas | ✅ | Language Server Protocol, CI/CD con builds multi-arquitectura |
+| Docker / Kubernetes | ✅ | Todo-server + Redis con un comando; CRD `HilbertSpace` con operator real |
+
+Detalle completo, incluyendo qué quedó deliberadamente fuera de alcance y por qué (ver `monografia.tex`, capítulo "Hoja de Ruta").
 
 ---
 
@@ -141,39 +152,51 @@ LINLANG_DB=redis://localhost:6379/0  go run . examples/todo_db.lin
 
 ```
 Linglang/
-├── core/                   # Tipos algebraicos fundamentales
-│   ├── spaces.go           # Space (espacio vectorial)
+├── core/                   # Tipos algebraicos fundamentales + extensión cuántica
+│   ├── spaces.go           # Space (espacio vectorial), DimType (Real/String)
 │   ├── vectors.go          # Vector + Scale, Norm, Project, Add, Dot
 │   ├── transforms.go       # Transform (función entre espacios)
 │   ├── conditionals.go     # Conditional con clausura GetValue
 │   ├── expressions.go      # Parser recursivo de expresiones aritméticas
 │   ├── hilbert.go          # HilbertSpace, QuantumState, DensityMatrix
-│   └── gates.go            # Gate, KronGate, BuiltinH/X/Y/Z/CNOT/I
+│   ├── gates.go            # Gate, KronGate, BuiltinH/X/Y/Z/CNOT/I/SWAP
+│   ├── backend.go          # Interfaz QuantumBackend / CircuitRunner
+│   ├── ibm_backend.go      # SuperconductorBackend — cliente HTTP real (IBM)
+│   ├── ionq_backend.go     # TrappedIonBackend — cliente HTTP real (IonQ)
+│   ├── cuda_backend.go     # CUDASimBackend — bindings cgo a cuStateVec
+│   ├── multi_gpu_backend.go# MultiGPUBackend — primitivo de distribución NCCL
+│   ├── noise.go / noisy_backend.go  # Decoherencia T1/T2, error de lectura
+│   ├── qir.go / optimizer.go / routing.go  # IR intermedia, optimización, SWAP
+│   ├── channel.go / teleport.go / bell_pool.go  # QuantumChannel, Teleport
+│   ├── hilbert_registry.go # Propiedad de espacios por nodo
+│   ├── scheduler.go        # ScheduleCircuit / ClusterGraph
+│   └── remote_backend.go   # Cliente gRPC hacia quantum-node
 ├── parser/
-│   ├── parser.go           # Runtime + dispatch principal
-│   ├── db.go               # persist / drop / query / query_one
-│   └── quantum.go          # hilbert / gate / ket / apply / tensor / ...
-├── store/
-│   ├── store.go            # Interfaz Backend + factory Open(dsn)
-│   ├── memory.go           # Backend en memoria (tests)
-│   ├── sqlite.go           # SQLite (modernc.org/sqlite, puro Go)
-│   └── redis.go            # Redis (go-redis/v9)
+│   ├── parser.go           # Runtime + dispatch principal, for/try/func/include
+│   ├── db.go                # persist / drop / query / query_one / filter / map
+│   └── quantum.go          # hilbert / gate / ket / apply / teleport / ...
+├── store/                  # Backend de persistencia (memoria, SQLite, Redis)
 ├── cmd/
-│   └── todo-server/
-│       └── main.go         # Servidor HTTP 100% LinLang-driven
-├── examples/
-│   ├── ejemplo.lin         # Demo núcleo clásico
-│   ├── ejemplo_quantum.lin # Demo LinLang/Q completo
-│   ├── teleportacion.lin   # Protocolo de teleportación cuántica
-│   ├── todo.lin            # Schema de la app TODO
-│   └── todo_db.lin         # Demo de persistencia nativa
-├── scripts/
-│   └── gh_import.py        # Importar backlog a GitHub Issues
-├── Dockerfile              # Imagen del intérprete LinLang
-├── Dockerfile.todo         # Imagen del servidor TODO (multi-stage)
-├── docker-compose.yml      # todo-server + Redis
-├── monografia.tex          # Tesis doctoral en LaTeX
-├── linlang_backlog.xlsx    # Backlog de 48 issues (5 épicas)
+│   ├── todo-server/        # Servidor HTTP 100% LinLang-driven
+│   ├── quantum-node/       # Servidor gRPC: un contenedor = un QPU simulado
+│   ├── operator/           # Operator de Kubernetes (manager de controller-runtime)
+│   └── lsp/                # Language Server Protocol sobre stdio
+├── api/v1alpha1/           # CRD HilbertSpace (tipos Go + DeepCopy generado)
+├── internal/controller/    # Reconciler del operator de Kubernetes
+├── proto/quantumnode/      # Definición gRPC del servicio QuantumNode
+├── config/                 # CRD YAML + RBAC generados con controller-gen
+├── docs/
+│   ├── index.html          # Referencia del lenguaje (sitio de GitHub Pages)
+│   ├── architecture.md     # Diagramas UML de la arquitectura
+│   └── teleportation.md    # Formalización de la teleportación
+├── examples/                # Programas .lin de ejemplo
+├── Dockerfile               # Imagen del intérprete LinLang
+├── Dockerfile.todo           # Imagen del servidor TODO (multi-stage)
+├── Dockerfile.quantum-node   # Imagen del nodo cuántico gRPC
+├── docker-compose.yml        # todo-server + Redis (+ perfil SQLite)
+├── .github/workflows/ci.yml  # build, vet, gofmt, tests, Docker multi-arch
+├── monografia.tex             # Tesis doctoral en LaTeX
+├── LICENSE                    # GNU GPL v3
 └── go.mod
 ```
 
@@ -199,15 +222,28 @@ Cada endpoint genera código LinLang en tiempo de ejecución y lo ejecuta en el 
 
 ---
 
-## Hoja de ruta
+## Estado del backlog
 
-Los 48 issues están en [GitHub Issues](https://github.com/Bulldrill/Linglang/issues) organizados en 5 épicas:
+Los 49 issues en [GitHub Issues](https://github.com/Bulldrill/Linglang/issues?q=is%3Aissue+is%3Aclosed) (todos cerrados) están organizados en 5 épicas:
 
-- **⚛️ Quantum Simulator** — backends por tecnología (superconductores, iones atrapados, átomos neutros), QIR, inserción de SWAPs, decoherencia
-- **🌐 Distributed Qubits** — teleportación como primitiva de infraestructura, scheduler cuántico, Docker QPU nodes, Kubernetes operator
-- **🔧 LinLang Core** — tipo String, colecciones de primera clase, multi-condición en query, módulos/imports, REPL, LSP
-- **🐳 Infrastructure** — CI/CD, tests unitarios e integración, multi-arch Docker
-- **📚 Thesis** — formalización del álgebra LinLang/Q, prueba de corrección del modelo distribuido, comparativa con Qiskit/Q#/Cirq
+- **⚛️ Quantum Simulator** — `QuantumBackend`/`CircuitRunner`, backends reales (IBM Quantum, IonQ), GPU/CUDA, QIR con optimizador y ruteo de SWAPs, simulación shot-based, decoherencia T1/T2 + error de lectura
+- **🌐 Distributed Qubits** — `QuantumChannel`, teleportación como primitiva de infraestructura, `HilbertRegistry`, scheduler (`ScheduleCircuit`), nodo cuántico por gRPC, operator de Kubernetes (CRD `HilbertSpace`, verificado contra un clúster `kind` real)
+- **🔧 LinLang Core** — tipo `String`, colecciones de primera clase, multi-condición en `query`, módulos (`include`), REPL, funciones de usuario (`func`), inferencia de tipos, manejo de errores (`try`/`catch`), Language Server Protocol
+- **🐳 Infrastructure** — CI/CD en GitHub Actions, tests unitarios e integración, benchmarks, Docker multi-arquitectura (amd64+arm64)
+- **📚 Thesis** — formalización del álgebra de LinLang/Q, especificación formal (gramática, tipos, semántica operacional), prueba de corrección del modelo distribuido, comparativa con Qiskit/Q#/Cirq/OpenQASM
+
+Quedó deliberadamente fuera de alcance (y documentado por qué): un backend para QuEra/Aquila (modelo analógico, no de puertas digitales) y la composición genérica de puertas arbitrarias en `MultiGPUBackend` (sin hardware multi-GPU para verificarla). Ver `monografia.tex`, capítulo "Hoja de Ruta".
+
+---
+
+## Documentación
+
+| Recurso | Contenido |
+|---|---|
+| 📖 [**Referencia del lenguaje**](https://bulldrill.github.io/Linglang/) | Sitio navegable: sintaxis completa, modelo de memoria y estructuras de datos, LinLang/Q, backends y distribución, herramientas |
+| [`docs/architecture.md`](docs/architecture.md) | Diagramas UML (clases y secuencia) de la arquitectura actual |
+| [`docs/teleportation.md`](docs/teleportation.md) | Formalización del protocolo de teleportación como primitiva de infraestructura |
+| [`monografia.tex`](monografia.tex) | Monografía doctoral completa: fundamentos, especificación formal, pruebas de corrección |
 
 ---
 
@@ -216,7 +252,10 @@ Los 48 issues están en [GitHub Issues](https://github.com/Bulldrill/Linglang/is
 - **Go 1.22+**
 - [modernc.org/sqlite](https://pkg.go.dev/modernc.org/sqlite) — SQLite puro Go (sin CGO)
 - [github.com/redis/go-redis/v9](https://github.com/redis/go-redis) — cliente Redis
-- Docker + Docker Compose (para el servidor TODO)
+- [google.golang.org/grpc](https://grpc.io/) — servicio `quantum-node` y su cliente (`core.RemoteBackend`)
+- [sigs.k8s.io/controller-runtime](https://github.com/kubernetes-sigs/controller-runtime) + `k8s.io/client-go` — operator de Kubernetes (`cmd/operator`)
+- Docker + Docker Compose (para el servidor TODO y el nodo cuántico)
+- Opcional: NVIDIA cuQuantum/NCCL (`-tags cuda`, `-tags "cuda nccl"`) y un clúster Kubernetes (`kind` para desarrollo local) para los componentes que lo requieren
 
 ```bash
 go mod tidy   # descarga todas las dependencias
@@ -230,6 +269,21 @@ La monografía doctoral completa en formato LaTeX está disponible en `monografi
 
 ```bash
 pdflatex monografia.tex && pdflatex monografia.tex
+```
+
+---
+
+## Licencia
+
+LinLang está publicado bajo la **GNU General Public License v3.0**. Ver [`LICENSE`](LICENSE) para el texto completo.
+
+```
+Copyright (C) 2026  Aaronsoria
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 ```
 
 ---
