@@ -1027,6 +1027,153 @@ El Teorema~\ref{thm:correccion-distribuida} es una afirmación de corrección \e
 \end{itemize}
 
 % ============================================================
+\chapter{Especificación Formal de \linlangQ{}}
+\label{ch:especificacion}
+% ============================================================
+
+Los capítulos anteriores formalizaron \emph{resultados} sobre \linlangQ{}: el álgebra que sustenta sus primitivas (\S\ref{sec:formalizacion-algebra}), la corrección del modelo distribuido (Capítulo~\ref{ch:correccion}). Este capítulo formaliza el \emph{lenguaje mismo}: su gramática, su sistema de tipos, y la semántica operacional que las implementaciones en \texttt{parser/quantum.go} y \texttt{core/} realizan — el contrato que cualquier reimplementación alternativa del runtime debería satisfacer para seguir siendo \linlangQ{}.
+
+\section{Gramática}
+\label{sec:gramatica-formal}
+
+La gramática siguiente cubre exactamente la sintaxis que \texttt{parser/parser.go} y \texttt{parser/quantum.go} reconocen — no una idealización: cada producción corresponde a una rama del \texttt{switch} de \texttt{ParseLine} o de \texttt{parseQuantumFuncCall}.
+
+\begin{lstlisting}[caption={Gramática BNF de \linlangQ{} (extensión cuántica)}, label={lst:bnf}]
+<programa>      ::= <sentencia>*
+
+<sentencia>     ::= <decl-hilbert> | <decl-gate> | <decl-func>
+                   | <decl-transform> | <let> | <when> | <for>
+                   | <try> | <print> | <persist> | <drop>
+                   | <include> | <technology>
+
+<decl-hilbert>  ::= "hilbert" <ident> ":" "dim" <entero>
+
+<decl-gate>     ::= "gate" <ident> ":" <ident> "->" <ident> "{" <fila>+ "}"
+<fila>          ::= "row" "[" <complejo> ("," <complejo>)* "]"
+<complejo>      ::= <real> | <real> "i" | <real> ("+" | "-") <real> "i"
+
+<decl-func>     ::= "func" <ident> ":" <ident> "->" <ident> "{" <asignacion>+ "}"
+<decl-transform>::= "transform" <ident> ":" <ident> "x" <ident> "->" <ident>
+                     "{" <asignacion>+ "}"
+<asignacion>    ::= <ident> "=" <expr-aritmetica>
+
+<let>           ::= "let" <ident> "=" <expr>
+<expr>          ::= <literal-vector> | <llamada-q> | <llamada-c>
+                   | <indexado-coleccion> | <query-expr> | <project-expr>
+
+<llamada-q>     ::= "ket" "(" <ident> ("," <complejo>)+ ")"
+                   | "apply" "(" <ident> "," <ident> ")"
+                   | "tensor" "(" <ident> "," <ident> ")"
+                   | "measure" "(" <ident> ")"
+                   | "shots" "(" <ident> "," <entero> ")"
+                   | "density" "(" <ident> ")"
+                   | "partial_trace" "(" <ident> "," <entero> ")"
+                   | "trace_alice" "(" <ident> "," <entero> ")"
+                   | "braket" "(" <ident> "," <ident> ")"
+                   | "purity" "(" <ident> ")"
+                   | "kron" "(" <ident> "," <ident> ")"
+                   | "teleport" "(" <ident> ")"
+
+<technology>    ::= "technology" ":" <ident>
+<include>       ::= "include" <string-literal>
+<try>           ::= "try" "{" <sentencia>* "}" "catch" <ident> "{" <sentencia>* "}"
+\end{lstlisting}
+
+\section{Sistema de Tipos}
+\label{sec:tipos-formal}
+
+\begin{definition}[Universo de tipos de \linlangQ{}]
+\label{def:tipos-universo}
+\[
+  \tau ::= \mathtt{HilbertSpace}(n) \mid \mathtt{QuantumState}(\Hilbert) \mid \mathtt{Gate}(\Hilbert_1,\Hilbert_2) \mid \mathtt{DensityMatrix}(\Hilbert) \mid \mathtt{Int} \mid \mathtt{Real}
+\]
+donde $n \in \mathbb{N}$ y $\Hilbert, \Hilbert_1, \Hilbert_2$ son espacios de Hilbert ya declarados. $\mathtt{QuantumState}(\Hilbert)$ y $\mathtt{DensityMatrix}(\Hilbert)$ son \emph{indexados} por el espacio exacto al que pertenecen — no hay subtipado entre $\mathtt{QuantumState}(\Hilbert_1)$ y $\mathtt{QuantumState}(\Hilbert_2)$ aun si $\dim\Hilbert_1 = \dim\Hilbert_2$, reflejando que \texttt{core/hilbert.go} compara punteros de espacio, no solo dimensiones.
+\end{definition}
+
+El contexto de tipado $\Gamma$ es exactamente la colección de mapas de \texttt{Runtime} (\texttt{HilbertSpaces}, \texttt{QuantumStates}, \texttt{Gates}, \texttt{DensityMatrices}): $\Gamma(x) = \tau$ si la ejecución hasta este punto ligó $x$ a un valor de tipo $\tau$.
+
+\begin{table}[H]
+\centering
+\caption{Reglas de tipado de las primitivas de \linlangQ{}}
+\label{tab:reglas-tipado}
+\renewcommand{\arraystretch}{1.6}
+\begin{tabularx}{\linewidth}{@{}L{5.3cm}X@{}}
+\toprule
+\textbf{Regla} & \textbf{Juicio} \\
+\midrule
+\textsc{T-Ket} &
+$\dfrac{\Gamma(H) = \mathtt{HilbertSpace}(n) \quad |\vec\alpha| = n}{\Gamma \vdash \mathtt{ket}(H,\vec\alpha) : \mathtt{QuantumState}(H)}$ \\
+\addlinespace
+\textsc{T-Apply} &
+$\dfrac{\Gamma \vdash g : \mathtt{Gate}(\Hilbert_1,\Hilbert_2) \quad \Gamma \vdash \psi : \mathtt{QuantumState}(\Hilbert_1)}{\Gamma \vdash \mathtt{apply}(g,\psi) : \mathtt{QuantumState}(\Hilbert_2)}$ \\
+\addlinespace
+\textsc{T-Tensor} &
+$\dfrac{\Gamma \vdash \psi_1 : \mathtt{QuantumState}(\Hilbert_1) \quad \Gamma \vdash \psi_2 : \mathtt{QuantumState}(\Hilbert_2)}{\Gamma \vdash \mathtt{tensor}(\psi_1,\psi_2) : \mathtt{QuantumState}(\Hilbert_1 \otimes \Hilbert_2)}$ \\
+\addlinespace
+\textsc{T-Kron} &
+$\dfrac{\Gamma \vdash g_1 : \mathtt{Gate}(\Hilbert_1,\Hilbert_1) \quad \Gamma \vdash g_2 : \mathtt{Gate}(\Hilbert_2,\Hilbert_2)}{\Gamma \vdash \mathtt{kron}(g_1,g_2) : \mathtt{Gate}(\Hilbert_1{\otimes}\Hilbert_2,\, \Hilbert_1{\otimes}\Hilbert_2)}$ \\
+\addlinespace
+\textsc{T-Measure} &
+$\dfrac{\Gamma \vdash \psi : \mathtt{QuantumState}(\Hilbert)}{\Gamma \vdash \mathtt{measure}(\psi) : \mathtt{Int}}$ \\
+\addlinespace
+\textsc{T-Density} &
+$\dfrac{\Gamma \vdash \psi : \mathtt{QuantumState}(\Hilbert)}{\Gamma \vdash \mathtt{density}(\psi) : \mathtt{DensityMatrix}(\Hilbert)}$ \\
+\addlinespace
+\textsc{T-Purity} &
+$\dfrac{\Gamma \vdash \density : \mathtt{DensityMatrix}(\Hilbert)}{\Gamma \vdash \mathtt{purity}(\density) : \mathtt{Real}}$ \\
+\addlinespace
+\textsc{T-Teleport} &
+$\dfrac{\Gamma \vdash \psi : \mathtt{QuantumState}(\Hilbert) \quad \dim \Hilbert = 2}{\Gamma \vdash \mathtt{teleport}(\psi) : \mathtt{QuantumState}(\Hilbert)}$ \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textsc{T-Teleport} lleva una condición lateral que las demás reglas no necesitan ($\dim\Hilbert = 2$) porque \texttt{core.Teleport} (issue \#14) solo está definido para un qubit — exactamente el chequeo que \texttt{Teleport} hace en tiempo de ejecución (\texttt{core/teleport.go}) y que esta regla hace estático. La Proposición~\ref{prop:unitary-closed} ($G_1\otimes G_2$ unitario si $G_1,G_2$ lo son) es, bajo esta lectura, una prueba de que \textsc{T-Kron} preserva no solo el tipo sino la invariante semántica de unitariedad.
+
+\section{Semántica Operacional}
+\label{sec:semantica-formal}
+
+La ejecución de \linlangQ{} es una relación de paso pequeño $\langle s, \sigma \rangle \to \langle s', \sigma' \rangle$ sobre configuraciones (sentencia restante, entorno) — $\sigma$ es, de nuevo, literalmente el estado de \texttt{Runtime}. \texttt{Parse} (\S\ref{sec:semantica-formal}) es la clausura reflexivo-transitiva $\to^*$ aplicada sentencia por sentencia.
+
+\begin{definition}[Reglas de reducción]
+\label{def:reduccion}
+\[
+\begin{array}{ll}
+\textsc{(E-Ket)} & \sigma(H) = \mathtt{HilbertSpace}(n) \implies \\
+  & \langle \texttt{let } x = \mathtt{ket}(H,\vec\alpha),\, \sigma \rangle \to \langle \epsilon,\, \sigma[x \mapsto \ket{\vec\alpha}_H] \rangle \\[0.6em]
+\textsc{(E-Apply)} & \sigma(g) = (U, \Hilbert_1, \Hilbert_2),\ \sigma(x) = \ket{\psi}_{\Hilbert_1} \implies \\
+  & \langle \texttt{let } y = \mathtt{apply}(g,x),\, \sigma \rangle \to \langle \epsilon,\, \sigma[y \mapsto U\ket{\psi}_{\Hilbert_2}] \rangle \\[0.6em]
+\textsc{(E-Measure)} & \sigma(x) = \ket{\psi}_{\Hilbert} = \textstyle\sum_i \alpha_i \ket{i},\ k = \arg\max_i |\alpha_i|^2 \implies \\
+  & \langle \texttt{let } y = \mathtt{measure}(x),\, \sigma \rangle \to \langle \epsilon,\, \sigma[y \mapsto k] \rangle \\[0.6em]
+\textsc{(E-Shots)} & \sigma(x) = \ket{\psi}_{\Hilbert},\ k \sim \mathrm{Born}(\psi) \implies \\
+  & \langle \texttt{let } y = \mathtt{shots}(x,n),\, \sigma \rangle \to^n \langle \epsilon,\, \sigma[y \mapsto \mathrm{hist}] \rangle
+\end{array}
+\]
+\end{definition}
+
+\textsc{E-Measure} y \textsc{E-Shots} son la misma distribución de Born (Definición~\ref{def:medicion-proyeccion}) con dos estrategias de selección distintas — determinista (argmax) vs.\ estocástica — exactamente la distinción que \S\ref{sec:complejidad} y \texttt{core/shots.go} (issue \#10) hacen explícita en el código: ambas reglas leen $|\alpha_i|^2$, difieren solo en cómo eligen $k$.
+
+\section{Modelo de Ejecución Distribuida}
+\label{sec:semantica-distribuida}
+
+La semántica de la Sección~\ref{sec:semantica-formal} opera sobre un único $\sigma$ — un solo nodo. El modelo distribuido (Capítulo~\ref{ch:correccion}) la extiende con un mapa de propiedad $\lambda : \mathit{Ident} \to \mathit{NodeID}$ (formalmente, \texttt{HilbertRegistry}, issue \#16) sobre configuraciones $\langle s, \sigma, \lambda \rangle$.
+
+\begin{definition}[Regla de migración]
+\label{def:regla-teleport}
+Sea $\mathit{ch}$ un \texttt{QuantumChannel} entre los nodos $A = \lambda(x)$ y $B$. Entonces:
+\[
+  \sigma(x) = \ket{\psi}_{\Hilbert},\ \dim\Hilbert = 2 \implies
+  \langle \texttt{let } y = \mathtt{teleport}(x),\, \sigma, \lambda \rangle \to \langle \epsilon,\, \sigma[y \mapsto \ket{\psi}_{\Hilbert}],\, \lambda[y \mapsto B] \rangle
+\]
+\end{definition}
+
+A diferencia de \textsc{E-Apply}/\textsc{E-Measure}, que son deterministas sobre $\sigma$, \textsc{E-Teleport} es determinista sobre su \emph{resultado} ($y$ recibe $\ket{\psi}$ exacto, Proposición~\ref{prop:teleport-compose}) pero no sobre su \emph{traza}: los dos bits clásicos intermedios $(m_0,m_1)$ varían con la medición de Alice sin afectar $y$ — la regla los omite deliberadamente porque, a nivel de la semántica del lenguaje, son un detalle de implementación del protocolo, no parte del tipo o del valor observable de $y$. Esta es precisamente la propiedad que el Teorema~\ref{thm:correccion-distribuida} explota para probarse por inducción: cada \textsc{E-Teleport} es, desde el punto de vista de $\sigma$, indistinguible de una asignación local.
+
+\begin{definition}[Composición de reducciones distribuidas]
+El Teorema~\ref{thm:schedule-preserves-semantics} (\texttt{ScheduleCircuit} preserva semántica entre nodos) es, en esta notación, el enunciado de que para todo programa $s$ y asignación inicial $\lambda_0$, existe una secuencia de aplicaciones de \textsc{E-Teleport} intercaladas con \textsc{E-Apply}/\textsc{E-Measure} locales tal que $\langle s, \sigma_0, \lambda_0 \rangle \to^* \langle \epsilon, \sigma_f, \lambda_f \rangle$ con $\sigma_f$ idéntico al que produciría la semántica de un solo nodo (\S\ref{sec:semantica-formal}) sobre el mismo $s$ y $\sigma_0$.
+\end{definition}
+
+% ============================================================
 \chapter{Resultados}
 \label{ch:resultados}
 % ============================================================
