@@ -272,6 +272,15 @@ func (rt *Runtime) Parse(code string) {
 	}
 }
 
+// InBlock reports whether the Runtime is mid-way through a multi-line
+// block (transform/gate/for/try/catch) — i.e. whether the next ParseLine
+// call continues that block rather than starting a new top-level
+// statement. A REPL (issue #30) uses this to show a continuation prompt
+// instead of re-prompting for a fresh statement.
+func (rt *Runtime) InBlock() bool {
+	return rt.inTransform || rt.inGate || rt.inFor || rt.inTry || rt.awaitingCatch || rt.inCatch
+}
+
 // ── include ───────────────────────────────────────────────────────────────────
 
 // Syntax: include "path/to/file.lin"  (issue #29)
