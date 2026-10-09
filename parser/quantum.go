@@ -13,7 +13,8 @@ package parser
 //   ket(Space, amp0, amp1, ...)   → QuantumState
 //   apply(Gate, |ψ⟩)             → QuantumState
 //   tensor(|ψ1⟩, |ψ2⟩)          → QuantumState in product space
-//   measure(|ψ⟩)                 → classical int (Born rule)
+//   measure(|ψ⟩)                 → classical int (Born rule, deterministic argmax)
+//   shots(|ψ⟩, n)                 → stochastic histogram over n Born-rule samples
 //   density(|ψ⟩)                 → DensityMatrix ρ = |ψ⟩⟨ψ|
 //   partial_trace(ρ, subDim)     → reduced DensityMatrix
 //   braket(|φ⟩, |ψ⟩)            → complex inner product ⟨φ|ψ⟩ (real part in Scalars)
@@ -294,6 +295,30 @@ func (rt *Runtime) parseQuantumFuncCall(varName, fnName string, args []string) b
 		rt.Scalars[varName] = float64(outcome)
 		fmt.Printf("[✔️] %s = measure(%s) → |%d⟩  [%s]  probs=%v\n",
 			varName, strings.TrimSpace(args[0]), outcome, backend.Name(), probs)
+		return true
+
+	// ── shots(|ψ⟩, n) → histograma estocástico (regla de Born) ───────────────
+	// A diferencia de measure() (argmax determinista, preservado por
+	// reproducibilidad — ver core/hilbert.go), shots() muestrea n veces de
+	// la distribución de Born, igual que hardware real (issue #10).
+	case "shots":
+		if len(args) < 2 {
+			fmt.Printf("[❌] shots: uso: shots(estado, n)\n")
+			return true
+		}
+		psi := rt.QuantumStates[strings.TrimSpace(args[0])]
+		if psi == nil {
+			fmt.Printf("[❌] shots: estado '%s' no encontrado\n", strings.TrimSpace(args[0]))
+			return true
+		}
+		n, err := strconv.Atoi(strings.TrimSpace(args[1]))
+		if err != nil || n < 1 {
+			fmt.Printf("[❌] shots: número de disparos inválido: %s\n", args[1])
+			return true
+		}
+		counts := psi.Shots(n, rt.rng)
+		rt.Histograms[varName] = counts
+		fmt.Printf("[✔️] %s = shots(%s, %d)  counts=%v\n", varName, strings.TrimSpace(args[0]), n, counts)
 		return true
 
 	// ── density(|ψ⟩) → ρ = |ψ⟩⟨ψ| ───────────────────────────────────────────
@@ -593,6 +618,10 @@ func (rt *Runtime) printQuantum(name string) bool {
 	}
 	if g, ok := rt.Gates[name]; ok {
 		fmt.Printf("[📌] %s  %v\n", name, g)
+		return true
+	}
+	if h, ok := rt.Histograms[name]; ok {
+		fmt.Printf("[📌] %s  (histograma, %d resultados distintos): %v\n", name, len(h), h)
 		return true
 	}
 	return false

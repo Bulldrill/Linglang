@@ -2,8 +2,10 @@ package parser
 
 import (
 	"fmt"
+	"math/rand"
 	"strconv"
 	"strings"
+	"time"
 
 	"linlang-go/core"
 	"linlang-go/store"
@@ -37,6 +39,12 @@ type Runtime struct {
 	// LINLANG_QUANTUM_BACKEND (default: the local simulator). See
 	// quantumBackend() in quantum.go.
 	Backend core.QuantumBackend
+
+	// Histograms holds shots(psi, n) results: outcome -> count, the
+	// stochastic Born-rule sampling counterpart to the deterministic
+	// Measurements map above (issue #10).
+	Histograms map[string]map[int]int
+	rng        *rand.Rand
 
 	// multi-line gate declaration state
 	inGate      bool
@@ -76,6 +84,8 @@ func NewRuntime() *Runtime {
 		Gates:           map[string]*core.Gate{},
 		Measurements:    map[string]int{},
 		Collections:     map[string][]*core.Vector{},
+		Histograms:      map[string]map[int]int{},
+		rng:             rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 }
 
